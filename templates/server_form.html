@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if s else 'Add' }} server · GenzVPN{% endblock %}
+{% block header %}
+<header class="top"><a class="brand" href="{{ url_for('admin.home') }}">genz<b>vpn</b> admin</a></header>
+{% endblock %}
+{% block content %}
+<h2>{{ 'Edit ' ~ s.name if s else 'Add a server' }}</h2>
+<form method="post" class="panel" id="server-form" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <div><label for="name">Name</label><input id="name" name="name" value="{{ v.name }}" placeholder="Nairobi SSH 1" maxlength="80"></div>
+    <div><label for="protocol">Type</label>
+      <select id="protocol" name="protocol">
+        {% for p, label in [('ssh','SSH tunnel'),('v2ray','V2Ray (vmess / vless / trojan / shadowsocks)'),('wireguard','UDP · WireGuard'),('custom','Custom Xray outbound (JSON)')] %}
+        <option value="{{ p }}" {{ 'selected' if v.protocol == p }}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div><label for="country_code">Country code</label><input id="country_code" name="country_code" value="{{ v.country_code }}" maxlength="2" placeholder="KE"></div>
+    <div><label for="note">Note shown to users</label><input id="note" name="note" value="{{ v.note }}" maxlength="200" placeholder="Fast, 100 users max"></div>
+    <div><label for="expires_at">Hide after (optional)</label><input id="expires_at" name="expires_at" value="{{ v.expires_at }}" placeholder="2026-12-31"></div>
+    <div><label for="sort">Order (lower = first)</label><input id="sort" name="sort" type="number" value="{{ v.sort }}"></div>
+  </div>
+
+  <div data-group="ssh">
+    <h3 style="margin-top:22px">SSH account</h3>
+    <div class="grid2">
+      <div><label>Host</label><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
+      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 22 }}"></div>
+      <div><label>Username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
+      <div><label>Password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
+      <div><label>SNI (wrap in TLS)</label><input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="leave empty for plain SSH"></div>
+      <div><label>HTTP proxy host (optional)</label><input name="ssh_proxy_host" value="{{ v.ssh_proxy_host }}"></div>
+      <div><label>HTTP proxy port</label><input name="ssh_proxy_port" type="number" value="{{ v.ssh_proxy_port }}"></div>
+    </div>
+    <label>Default payload (a tweak's payload replaces this)</label>
+    <textarea name="ssh_payload" rows="3" placeholder="GET / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]">{{ v.ssh_payload }}</textarea>
+    <p class="hint">Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span></p>
+  </div>
+
+  <div data-group="v2ray">
+    <h3 style="margin-top:22px">V2Ray link</h3>
+    <textarea name="v2ray_link" rows="3" placeholder="vmess://… vless://… trojan://… ss://…">{{ v.v2ray_link }}</textarea>
+    <p class="hint">Host and port are read from the link. {% if s %}Leave empty to keep the current link.{% endif %}</p>
+  </div>
+
+  <div data-group="wireguard">
+    <h3 style="margin-top:22px">WireGuard config</h3>
+    <textarea name="wg_conf" rows="9" placeholder="[Interface]&#10;PrivateKey = …&#10;Address = 10.8.0.2/32&#10;&#10;[Peer]&#10;PublicKey = …&#10;Endpoint = vpn.example.com:51820">{{ v.wg_conf }}</textarea>
+    <p class="hint">Paste a normal WireGuard client config. All users share this one identity, so use a dedicated peer with a limited bandwidth quota. {% if s %}Leave empty to keep the current one.{% endif %}</p>
+  </div>
+
+  <div data-group="custom">
+    <h3 style="margin-top:22px">Xray outbound JSON</h3>
+    <textarea name="custom_outbound" rows="10" placeholder='{"protocol": "...", "settings": {...}, "streamSettings": {...}}'>{{ v.custom_outbound }}</textarea>
+    <p class="hint">One outbound object, the same format Xray uses. Good for protocols without a share link here.</p>
+    <div class="grid2"><div><label>Host (display only)</label><input name="host" value="{{ v.host }}"></div><div><label>Port (display only)</label><input name="port" type="number" value="{{ v.port or '' }}"></div></div>
+  </div>
+
+  <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="is_active" value="1" {{ 'checked' if v.is_active }} style="width:auto"> Visible to users</label></p>
+  <p><button class="btn">Save server</button> <a class="btn ghost" href="{{ url_for('admin.home') }}">Cancel</a></p>
+</form>
+{% endblock %}

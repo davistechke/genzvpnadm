@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit' if t else 'Add' }} tweak · GenzVPN{% endblock %}
+{% block header %}
+<header class="top"><a class="brand" href="{{ url_for('admin.home', tab='tweaks') }}">genz<b>vpn</b> admin</a></header>
+{% endblock %}
+{% block content %}
+<h2>{{ 'Edit ' ~ t.name if t else 'Add a tweak' }}</h2>
+<form method="post" class="panel" enctype="multipart/form-data">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <div><label>Name</label><input name="name" value="{{ v.name }}" placeholder="Websocket payload" maxlength="80"></div>
+    <div><label>Short description</label><input name="description" value="{{ v.description }}" maxlength="200" placeholder="Try this first on mobile data"></div>
+  </div>
+
+  <label>Payload (SSH)</label>
+  <textarea name="payload" rows="4" placeholder="GET / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]">{{ v.payload }}</textarea>
+  <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above). Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+
+  <div class="grid2">
+    <div><label>SNI</label><input name="sni" value="{{ v.sni }}" placeholder="TLS server name to present"></div>
+    <div><label>Host header</label><input name="host_header" value="{{ v.host_header }}" placeholder="websocket / httpupgrade host"></div>
+    <div><label>Proxy / connect host</label><input name="proxy_host" value="{{ v.proxy_host }}" placeholder="SSH: HTTP proxy. V2Ray: address to dial"></div>
+    <div><label>Proxy / connect port</label><input name="proxy_port" type="number" value="{{ v.proxy_port }}"></div>
+    <div><label>DNS server</label><input name="dns" value="{{ v.dns }}" placeholder="1.1.1.1"></div>
+    <div><label>Order</label><input name="sort" type="number" value="{{ v.sort }}"></div>
+  </div>
+
+  <label>Show for types</label>
+  <div class="checks">{% for p in ['ssh','v2ray','wireguard','custom'] %}
+    <label><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p in v.protocols }}> {{ p }}</label>{% endfor %}</div>
+  <p class="hint">Tick none to show it for every type.</p>
+
+  {% if servers %}
+  <label>Only for these servers</label>
+  <div class="checks">{% for s in servers %}
+    <label><input type="checkbox" name="server_ids" value="{{ s.id }}" {{ 'checked' if s.id|string in v.server_ids }}> {{ s.name }}</label>{% endfor %}</div>
+  <p class="hint">Tick none to show it for all servers.</p>
+  {% endif %}
+
+  <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="is_active" value="1" {{ 'checked' if v.is_active }} style="width:auto"> Visible to users</label></p>
+  <p><button class="btn">Save tweak</button> <a class="btn ghost" href="{{ url_for('admin.home', tab='tweaks') }}">Cancel</a></p>
+</form>
+{% endblock %}

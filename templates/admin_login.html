@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block header %}{% endblock %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<div class="narrow">
+  <h2>Sign in</h2>
+  <form method="post">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="username">
+    <label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="current-password">
+    <p><button class="btn">Sign in</button></p>
+  </form>
+</div>
+{% endblock %}

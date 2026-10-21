@@ -1,0 +1,95 @@
+{% extends "base.html" %}
+{% block title %}Admin · GenzVPN{% endblock %}
+{% block header %}
+<header class="top"><span class="brand">genz<b>vpn</b> admin</span>
+<nav><form method="post" action="{{ url_for('admin.logout') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="link">Sign out</button></form></nav></header>
+{% endblock %}
+{% block content %}
+<div class="tabs">
+  {% for t, label in [('servers','Servers'),('tweaks','Tweaks'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
+  {% endfor %}
+</div>
+
+{% if tab == 'servers' %}
+<p><a class="btn" href="{{ url_for('admin.server_form') }}">Add server</a></p>
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>Server</th><th>Type</th><th>Host</th><th>Expires</th><th>State</th><th></th></tr></thead>
+  {% for s in servers %}
+  <tr>
+    <td><a href="{{ url_for('admin.server_form', sid=s.id) }}">{{ s.country_code | flag }} {{ s.name }}</a><br><span class="hint">{{ s.note }}</span></td>
+    <td><span class="proto">{{ s.protocol }}</span></td>
+    <td>{{ s.host }}{% if s.port %}:{{ s.port }}{% endif %}</td>
+    <td>{{ s.expires_at.strftime('%d %b %Y') if s.expires_at else '–' }}</td>
+    <td><span class="badge {{ 'on' if s.is_active else 'off' }}">{{ 'live' if s.is_active else 'hidden' }}</span></td>
+    <td>
+      <form class="inline" method="post" action="{{ url_for('admin.server_toggle', sid=s.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if s.is_active else 'Show' }}</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.server_duplicate', sid=s.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">Copy</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.server_delete', sid=s.id) }}" data-confirm="Delete {{ s.name }}?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="muted">No servers yet. Add one, or paste many at once under Quick import.</td></tr>{% endfor %}
+</table></div>
+
+{% elif tab == 'tweaks' %}
+<p><a class="btn" href="{{ url_for('admin.tweak_form') }}">Add tweak</a></p>
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>Tweak</th><th>Applies to</th><th>Has</th><th>State</th><th></th></tr></thead>
+  {% for t in tweaks %}
+  <tr>
+    <td><a href="{{ url_for('admin.tweak_form', tid=t.id) }}">{{ t.name }}</a><br><span class="hint">{{ t.description }}</span></td>
+    <td>{{ t.protocols.replace(',', ', ') if t.protocols else 'all types' }}{% if t.server_ids %} · {{ t.server_ids.split(',') | length }} server(s){% endif %}</td>
+    <td class="hint">{% if t.payload %}payload {% endif %}{% if t.sni %}SNI {% endif %}{% if t.host_header %}host {% endif %}{% if t.proxy_host %}proxy {% endif %}{% if t.dns %}DNS{% endif %}</td>
+    <td><span class="badge {{ 'on' if t.is_active else 'off' }}">{{ 'live' if t.is_active else 'hidden' }}</span></td>
+    <td>
+      <form class="inline" method="post" action="{{ url_for('admin.tweak_toggle', tid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if t.is_active else 'Show' }}</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.tweak_delete', tid=t.id) }}" data-confirm="Delete {{ t.name }}?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="5" class="muted">No tweaks yet. Users will just see "Default".</td></tr>{% endfor %}
+</table></div>
+
+{% elif tab == 'import' %}
+<div class="panel">
+  <h3>Paste many servers at once</h3>
+  <p class="hint">One per line. V2Ray links (<span class="code">vmess://</span> <span class="code">vless://</span> <span class="code">trojan://</span> <span class="code">ss://</span>) and SSH accounts as <span class="code">host:port@user:password</span> both work.</p>
+  <form method="post" action="{{ url_for('admin.import_links') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <textarea name="lines" rows="8" placeholder="vless://...&#10;1.2.3.4:22@user:pass"></textarea>
+    <p><button class="btn">Add servers</button></p>
+  </form>
+</div>
+
+{% elif tab == 'backup' %}
+<div class="panel stack">
+  <h3>Config file for offline sharing</h3>
+  <p>Download the full config and send it to users through WhatsApp, Bluetooth or Shareit. They tap Import in the app, so they need no data at all. You can also put it in <span class="code">android/app/src/main/assets/default_config.json</span> so the app ships with these servers built in.</p>
+  <p><a class="btn" href="{{ url_for('admin.export') }}">Download genzvpn-config.json</a></p>
+  <p class="hint">Config revision {{ rev }}. The file includes hidden servers; the app's public download does not.</p>
+</div>
+<div class="panel">
+  <h3>Restore or import a config file</h3>
+  <form method="post" action="{{ url_for('admin.import_bundle_route') }}" enctype="multipart/form-data"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="file" name="bundle" accept=".json,application/json" required>
+    <label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="replace" value="1" checked style="width:auto"> Replace everything currently here</label>
+    <p><button class="btn">Import</button></p>
+  </form>
+</div>
+
+{% elif tab == 'settings' %}
+<div class="panel">
+  <h3>Message shown in the app</h3>
+  <form method="post" action="{{ url_for('admin.settings') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input name="announcement" maxlength="300" value="{{ announcement }}" placeholder="e.g. New Nairobi server added" style="max-width:640px">
+    <p><button class="btn">Save</button></p>
+  </form>
+</div>
+<div class="panel">
+  <h3>Change your password</h3>
+  <form method="post" action="{{ url_for('admin.change_password') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Current password</label><input type="password" name="current" required autocomplete="current-password">
+    <label>New password</label><input type="password" name="new" minlength="8" required autocomplete="new-password">
+    <p><button class="btn">Change</button></p>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <h1>Pick a server. Pick a tweak. Connect.</h1>
+    <p>No sign-up, no login. Open the app, choose where to connect, choose how, and tap once. Server lists update quietly when you have data and still work from the last copy when you don't.</p>
+    <div class="cta">
+      {% if has_apk %}<a class="btn alt" href="{{ url_for('web.download') }}">Download for Android</a>
+      {% else %}<span class="btn ghost" aria-disabled="true">Android app coming soon</span>{% endif %}
+    </div>
+    <p class="hint" style="margin-top:14px">{{ server_count }} server{{ 's' if server_count != 1 }} online right now.</p>
+  </div>
+  <svg class="rings" viewBox="0 0 340 340" role="img" aria-label="Concentric rings forming a tunnel">
+    <circle class="r4" cx="170" cy="170" r="160"/><circle class="r3" cx="170" cy="170" r="120"/>
+    <circle class="r2" cx="170" cy="170" r="80"/><circle class="r1" cx="170" cy="170" r="40"/>
+    <circle class="dot" cx="170" cy="170" r="10"/>
+  </svg>
+</section>
+<section class="facts">
+  <div><h3>SSH, V2Ray, WireGuard</h3><p>Several ways to connect, so there is usually one that works on your network.</p></div>
+  <div><h3>Tweaks</h3><p>Switch the connection style in one tap when a server is slow or blocked.</p></div>
+  <div><h3>See your IP</h3><p>A live log shows your real IP and the new one once you are connected.</p></div>
+</section>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="narrow"><h2>{{ 'Page not found' if code == 404 else 'Something went wrong' }}</h2>
+<p class="muted">{{ message if code != 404 else 'That page does not exist.' }}</p>
+<p><a class="btn" href="{{ url_for('web.index') }}">Back home</a></p></div>
+{% endblock %}

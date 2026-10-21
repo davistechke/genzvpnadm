@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: genzvpn
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --workers 2 --bind 0.0.0.0:$PORT
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: DATABASE_URL      # Render Postgres internal URL
+        sync: false
+      - key: ADMIN_EMAIL       # creates the first admin on startup
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
