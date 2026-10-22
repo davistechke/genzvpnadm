@@ -71,6 +71,15 @@ class Tweak(db.Model):
     sort = db.Column(db.Integer, default=0)
 
 
+class Notice(db.Model):
+    """A message the admin posts; shows up in the app's Notifications screen."""
+    __tablename__ = "notices"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(80), nullable=False)
+    message = db.Column(db.Text, default="")
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+
 class Setting(db.Model):
     __tablename__ = "settings"
     key = db.Column(db.String(40), primary_key=True)

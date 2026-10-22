@@ -14,26 +14,39 @@
         {% for p, label in [('ssh','SSH tunnel'),('v2ray','V2Ray (vmess / vless / trojan / shadowsocks)'),('wireguard','UDP · WireGuard'),('custom','Custom Xray outbound (JSON)')] %}
         <option value="{{ p }}" {{ 'selected' if v.protocol == p }}>{{ label }}</option>{% endfor %}
       </select></div>
-    <div><label for="country_code">Country code</label><input id="country_code" name="country_code" value="{{ v.country_code }}" maxlength="2" placeholder="KE"></div>
+    <div><label for="country_code">Country code</label><input id="country_code" name="country_code" value="{{ v.country_code }}" maxlength="2" placeholder="KE"><p class="hint">Two letters, like KE, US, DE. Users pick a country first, then one of its configs, so servers with the same code are grouped.</p></div>
     <div><label for="note">Note shown to users</label><input id="note" name="note" value="{{ v.note }}" maxlength="200" placeholder="Fast, 100 users max"></div>
     <div><label for="expires_at">Hide after (optional)</label><input id="expires_at" name="expires_at" value="{{ v.expires_at }}" placeholder="2026-12-31"></div>
     <div><label for="sort">Order (lower = first)</label><input id="sort" name="sort" type="number" value="{{ v.sort }}"></div>
   </div>
 
   <div data-group="ssh">
-    <h3 style="margin-top:22px">SSH account</h3>
+    <h3 style="margin-top:22px">SSH settings</h3>
+
+    <label>Remote proxy</label>
+    <input name="ssh_proxy" value="{{ v.ssh_proxy }}" placeholder="proxy.example.com:8080" style="max-width:420px">
+    <p class="hint">Optional, as host:port. The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
+
+    <label>Payload</label>
+    <textarea name="ssh_payload" rows="3" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
+    <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above).
+      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+
+    <label>Account (SSH host and port)</label>
     <div class="grid2">
-      <div><label>Host</label><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
-      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 22 }}"></div>
-      <div><label>Username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
-      <div><label>Password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
-      <div><label>SNI (wrap in TLS)</label><input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="leave empty for plain SSH"></div>
-      <div><label>HTTP proxy host (optional)</label><input name="ssh_proxy_host" value="{{ v.ssh_proxy_host }}"></div>
-      <div><label>HTTP proxy port</label><input name="ssh_proxy_port" type="number" value="{{ v.ssh_proxy_port }}"></div>
+      <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
+      <div><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
     </div>
-    <label>Default payload (a tweak's payload replaces this)</label>
-    <textarea name="ssh_payload" rows="3" placeholder="GET / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]">{{ v.ssh_payload }}</textarea>
-    <p class="hint">Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span></p>
+
+    <div class="grid2">
+      <div><label>SSH username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
+      <div><label>SSH password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
+    </div>
+
+    <details style="margin-top:14px"><summary class="muted">Advanced</summary>
+      <label>SNI (wrap the connection in TLS)</label>
+      <input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="leave empty for plain SSH" style="max-width:420px">
+    </details>
   </div>
 
   <div data-group="v2ray">

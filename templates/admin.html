@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
 <div class="tabs">
-  {% for t, label in [('servers','Servers'),('tweaks','Tweaks'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  {% for t, label in [('servers','Servers'),('tweaks','Tweaks'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
   <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
   {% endfor %}
 </div>
@@ -38,7 +38,7 @@
   {% for t in tweaks %}
   <tr>
     <td><a href="{{ url_for('admin.tweak_form', tid=t.id) }}">{{ t.name }}</a><br><span class="hint">{{ t.description }}</span></td>
-    <td>{{ t.protocols.replace(',', ', ') if t.protocols else 'all types' }}{% if t.server_ids %} · {{ t.server_ids.split(',') | length }} server(s){% endif %}</td>
+    <td>{{ t.protocols.replace(',', ', ') if t.protocols else 'all types' }}{% if t.server_ids %} · attached to {{ t.server_ids.split(',') | length }} server(s){% else %} · not attached (unused){% endif %}</td>
     <td class="hint">{% if t.payload %}payload {% endif %}{% if t.sni %}SNI {% endif %}{% if t.host_header %}host {% endif %}{% if t.proxy_host %}proxy {% endif %}{% if t.dns %}DNS{% endif %}</td>
     <td><span class="badge {{ 'on' if t.is_active else 'off' }}">{{ 'live' if t.is_active else 'hidden' }}</span></td>
     <td>
@@ -47,6 +47,24 @@
     </td>
   </tr>
   {% else %}<tr><td colspan="5" class="muted">No tweaks yet. Users will just see "Default".</td></tr>{% endfor %}
+</table></div>
+
+{% elif tab == 'notices' %}
+<div class="panel">
+  <h3>Send a notification to app users</h3>
+  <form method="post" action="{{ url_for('admin.notice_add') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Title</label><input name="title" maxlength="80" placeholder="New Nairobi server" required>
+    <label>Message</label><textarea name="message" rows="4" maxlength="1000" placeholder="Details users should know"></textarea>
+    <p><button class="btn">Send</button></p>
+    <p class="hint">Users see it in the app's Notifications screen after they tap Update or import a new config file.</p>
+  </form>
+</div>
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>Sent</th><th>Notification</th><th></th></tr></thead>
+  {% for n in notices %}
+  <tr><td>{{ n.created_at.strftime('%d %b %Y') }}</td><td><strong>{{ n.title }}</strong><br><span class="hint">{{ n.message }}</span></td>
+      <td><form class="inline" method="post" action="{{ url_for('admin.notice_delete', nid=n.id) }}" data-confirm="Delete this notification?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form></td></tr>
+  {% else %}<tr><td colspan="3" class="muted">Nothing sent yet.</td></tr>{% endfor %}
 </table></div>
 
 {% elif tab == 'import' %}
@@ -63,8 +81,10 @@
 <div class="panel stack">
   <h3>Config file for offline sharing</h3>
   <p>Download the full config and send it to users through WhatsApp, Bluetooth or Shareit. They tap Import in the app, so they need no data at all. You can also put it in <span class="code">android/app/src/main/assets/default_config.json</span> so the app ships with these servers built in.</p>
-  <p><a class="btn" href="{{ url_for('admin.export') }}">Download genzvpn-config.json</a></p>
-  <p class="hint">Config revision {{ rev }}. The file includes hidden servers; the app's public download does not.</p>
+  <p><a class="btn" href="{{ url_for('admin.export') }}">Download genzvpn-config.json</a>
+     <a class="btn ghost" href="{{ url_for('admin.export', plain=1) }}">Plain backup (shows passwords)</a></p>
+  <p class="hint">{% if locked %}Locked: unreadable without the app's key, so users can't read hosts, proxies or passwords from it.{% else %}Not locked yet. Set CONFIG_KEY on the server (and in the app) so shared files and the app's download are unreadable.{% endif %}
+    The plain backup is only for you; keep it private. Config revision {{ rev }}. These files include hidden servers; the app's public download does not.</p>
 </div>
 <div class="panel">
   <h3>Restore or import a config file</h3>
@@ -77,9 +97,10 @@
 
 {% elif tab == 'settings' %}
 <div class="panel">
-  <h3>Message shown in the app</h3>
+  <h3>WhatsApp channel link</h3>
+  <p class="hint">The app's Join channel button opens this. Looks like <span class="code">https://whatsapp.com/channel/0029Vb...</span></p>
   <form method="post" action="{{ url_for('admin.settings') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <input name="announcement" maxlength="300" value="{{ announcement }}" placeholder="e.g. New Nairobi server added" style="max-width:640px">
+    <input name="channel_url" maxlength="200" value="{{ channel_url }}" placeholder="https://whatsapp.com/channel/..." style="max-width:640px">
     <p><button class="btn">Save</button></p>
   </form>
 </div>

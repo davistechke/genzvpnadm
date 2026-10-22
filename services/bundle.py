@@ -3,7 +3,7 @@ import hashlib
 import json
 from datetime import datetime
 
-from models import Server, Tweak, bump_rev, db, get_setting, set_setting, utcnow
+from models import Notice, Server, Tweak, bump_rev, db, get_setting, set_setting, utcnow
 
 FORMAT = "genzvpn-config"
 
@@ -44,6 +44,11 @@ def tweak_to_dict(t, full=False):
     return d
 
 
+def notice_to_dict(n):
+    return {"id": n.id, "title": n.title, "message": n.message or "",
+            "date": n.created_at.strftime("%Y-%m-%d") if n.created_at else ""}
+
+
 def build_bundle(public=True):
     q = Server.query
     servers = q.filter_by(is_active=True).order_by(Server.sort, Server.name).all() if public else \
@@ -52,7 +57,8 @@ def build_bundle(public=True):
     servers = [s for s in servers if not (public and s.expires_at and s.expires_at < now)]
     tq = Tweak.query.filter_by(is_active=True) if public else Tweak.query
     return {"format": FORMAT, "version": int(get_setting("rev", "0") or 0),
-            "announcement": get_setting("announcement", ""),
+            "channel_url": get_setting("channel_url", ""),
+            "notifications": [notice_to_dict(n) for n in Notice.query.order_by(Notice.id.desc()).limit(20)],
             "servers": [server_to_dict(s, not public) for s in servers],
             "tweaks": [tweak_to_dict(t, not public) for t in tq.order_by(Tweak.sort, Tweak.name).all()]}
 
@@ -69,6 +75,7 @@ def import_bundle(data, replace=True):
     if replace:
         Server.query.delete()
         Tweak.query.delete()
+        Notice.query.delete()
     id_map = {}
     for i, d in enumerate(data.get("servers", [])):
         s = Server(name=d.get("name", "Server")[:80], country_code=(d.get("country") or "")[:2].upper(),
@@ -88,8 +95,11 @@ def import_bundle(data, replace=True):
                              proxy_port=int(d.get("proxy_port") or 0), dns=d.get("dns", ""),
                              protocols=",".join(d.get("protocols", [])), server_ids=ids, sort=d.get("sort", i),
                              is_active=bool(d.get("active", True))))
-    if "announcement" in data:
-        set_setting("announcement", data["announcement"])
+    if "channel_url" in data:
+        set_setting("channel_url", str(data["channel_url"])[:200])
+    for n in reversed(data.get("notifications", [])):  # oldest first so ids keep their order
+        db.session.add(Notice(title=str(n.get("title", ""))[:80] or "Update", message=str(n.get("message", "")),
+                              created_at=_date(n.get("date")) or utcnow()))
     bump_rev()
     db.session.commit()
     return len(data.get("servers", [])), len(data.get("tweaks", []))

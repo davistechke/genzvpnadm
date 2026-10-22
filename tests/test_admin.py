@@ -140,10 +140,12 @@ def test_export_import_round_trip(app, admin):
                                        "ssh_username": "u"})  # not visible
     post(admin, "/admin/servers/new", {"name": "Live", "protocol": "ssh", "host": "h2", "port": "22",
                                        "ssh_username": "u", "is_active": "1"})
-    post(admin, "/admin/settings", {"announcement": "Hello users"}, page="/admin/?tab=settings")
+    post(admin, "/admin/settings", {"channel_url": "https://whatsapp.com/channel/0029VaABC"}, page="/admin/?tab=settings")
+    post(admin, "/admin/notices", {"title": "Welcome", "message": "Hi there"}, page="/admin/?tab=notices")
     exported = admin.get("/admin/export")
     data = json.loads(exported.data)
-    assert {s["name"] for s in data["servers"]} == {"Hidden", "Live"} and data["announcement"] == "Hello users"
+    assert {s["name"] for s in data["servers"]} == {"Hidden", "Live"} and data["channel_url"].endswith("0029VaABC")
+    assert data["notifications"][0]["title"] == "Welcome"
     with app.app_context():
         Server.query.delete()
         db.session.commit()
@@ -151,6 +153,8 @@ def test_export_import_round_trip(app, admin):
                    "bundle": (io.BytesIO(exported.data), "c.json")}, content_type="multipart/form-data")
     assert r.status_code == 302
     assert {s["name"] for s in bundle(app.test_client())["servers"]} == {"Live"}  # hidden stays hidden
+    b = bundle(app.test_client())
+    assert b["channel_url"].endswith("0029VaABC") and b["notifications"][0]["message"] == "Hi there"
     bad = admin.post("/admin/import-bundle", data={"csrf": csrf(admin, "/admin/?tab=backup"),
                      "bundle": (io.BytesIO(b'{"nope":1}'), "c.json")}, content_type="multipart/form-data")
     assert bad.status_code == 302
@@ -160,3 +164,45 @@ def test_change_password(app, admin):
     post(admin, "/admin/password", {"current": "adminpass1", "new": "newpassword9"}, page="/admin/?tab=settings")
     with app.app_context():
         assert Admin.query.first().check_password("newpassword9")
+
+
+def test_notifications_and_channel_link_validation(app, admin):
+    pub = app.test_client()
+    assert bundle(pub)["notifications"] == [] and bundle(pub)["channel_url"] == ""
+    post(admin, "/admin/notices", {"title": "One", "message": "first"}, page="/admin/?tab=notices")
+    post(admin, "/admin/notices", {"title": "Two", "message": "second"}, page="/admin/?tab=notices")
+    post(admin, "/admin/notices", {"title": "", "message": "no title"}, page="/admin/?tab=notices")
+    titles = [n["title"] for n in bundle(pub)["notifications"]]
+    assert titles == ["Two", "One"]  # newest first, blank title rejected
+    r = post(admin, "/admin/settings", {"channel_url": "https://evil.example.com/channel/x"}, page="/admin/?tab=settings",
+             follow_redirects=True)
+    assert b"does not look like a WhatsApp channel" in r.data and bundle(pub)["channel_url"] == ""
+    post(admin, "/admin/settings", {"channel_url": "https://www.whatsapp.com/channel/0029VaXYZ"}, page="/admin/?tab=settings")
+    assert bundle(pub)["channel_url"].endswith("0029VaXYZ")
+    nid = bundle(pub)["notifications"][0]["id"]
+    post(admin, f"/admin/notices/{nid}/delete", {}, page="/admin/?tab=notices")
+    assert [n["title"] for n in bundle(pub)["notifications"]] == ["One"]
+
+
+def test_ssh_form_remote_proxy_and_payload_file(app, admin):
+    r = admin.post("/admin/servers/new", data={
+        "csrf": csrf(admin, "/admin/servers/new"), "name": "Proxied", "protocol": "ssh", "host": "9.9.9.9",
+        "port": "22", "ssh_username": "u", "ssh_password": "p", "ssh_proxy": "http://proxy.example.com:8080/",
+        "is_active": "1", "payload_file": (io.BytesIO(b"CONNECT [host_port] HTTP/1.1[crlf][crlf]\n"), "p.txt")},
+        content_type="multipart/form-data")
+    assert r.status_code == 302
+    ssh = bundle(app.test_client())["servers"][0]["ssh"]
+    assert ssh["proxy_host"] == "proxy.example.com" and ssh["proxy_port"] == 8080
+    assert ssh["payload"].startswith("CONNECT [host_port]") and ssh["username"] == "u" and ssh["password"] == "p"
+
+    page = admin.get("/admin/servers/1").get_data(as_text=True)  # the edit form shows it as one host:port box
+    assert 'value="proxy.example.com:8080"' in page
+
+    bad = admin.post("/admin/servers/new", data={
+        "csrf": csrf(admin, "/admin/servers/new"), "name": "Bad", "protocol": "ssh", "host": "h", "port": "22",
+        "ssh_username": "u", "ssh_proxy": "proxy.example.com:abc"}, content_type="multipart/form-data")
+    assert bad.status_code == 200 and b"host:port" in bad.data
+    nothing = post(admin, "/admin/servers/new", {"name": "Direct", "protocol": "ssh", "host": "h", "port": "22",
+                                                 "ssh_username": "u", "is_active": "1"})
+    names = {s["name"]: s["ssh"] for s in bundle(app.test_client())["servers"]}
+    assert names["Direct"]["proxy_host"] == "" and names["Direct"]["proxy_port"] == 0

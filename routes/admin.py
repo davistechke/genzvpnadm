@@ -1,13 +1,15 @@
 import json
+import re
 from datetime import datetime
 
-from flask import (Blueprint, Response, flash, redirect, render_template, request, session, url_for)
+from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for)
 
-from models import Admin, Server, Tweak, bump_rev, db, get_setting, set_setting
+from models import Admin, Notice, Server, Tweak, bump_rev, db, get_setting, set_setting
 from routes.common import (admin_required, check_csrf, clear_failures, current_admin, record_failure,
                            throttled)
 from services import links
 from services.bundle import FORMAT, build_bundle, import_bundle
+from services.lock import is_locked, lock, unlock
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
 PROTOCOLS = ("ssh", "v2ray", "wireguard", "custom")
@@ -70,8 +72,10 @@ def home():
     ctx = {"tab": tab, "servers": [], "tweaks": []}
     ctx["servers"] = Server.query.order_by(Server.sort, Server.name).all()
     ctx["tweaks"] = Tweak.query.order_by(Tweak.sort, Tweak.name).all()
-    ctx["announcement"] = get_setting("announcement", "")
+    ctx["channel_url"] = get_setting("channel_url", "")
+    ctx["notices"] = Notice.query.order_by(Notice.id.desc()).limit(50).all()
     ctx["rev"] = get_setting("rev", "0")
+    ctx["locked"] = bool(current_app.config["CONFIG_KEY"])
     return render_template("admin.html", **ctx)
 
 
@@ -86,13 +90,26 @@ def _server_values(s):
         "expires_at": s.expires_at.strftime("%Y-%m-%d") if s and s.expires_at else "",
         "ssh_username": cfg.get("username", ""), "ssh_password": cfg.get("password", ""),
         "ssh_payload": cfg.get("payload", ""), "ssh_sni": cfg.get("sni", ""),
-        "ssh_proxy_host": cfg.get("proxy_host", ""), "ssh_proxy_port": cfg.get("proxy_port", ""),
+        "ssh_proxy": (f"{cfg['proxy_host']}:{cfg.get('proxy_port') or ''}".rstrip(":") if cfg.get("proxy_host") else ""),
         "v2ray_link": cfg.get("link", ""), "wg_conf": cfg.get("wg_conf", ""),
         "custom_outbound": json.dumps(cfg["outbound"], indent=2) if s and s.protocol == "custom" and cfg.get("outbound") else "",
     }
 
 
-def _fill_server(s, f):
+def _parse_proxy(text):
+    """'host:port' (optionally with http://) -> (host, port). Empty means no proxy."""
+    text = re.sub(r"^https?://", "", (text or "").strip()).rstrip("/")
+    if not text:
+        return "", 0
+    host, _, port = text.rpartition(":")
+    if not host:
+        return text, 8080  # host only: assume the usual proxy port
+    if not port.isdigit() or not 0 < int(port) < 65536:
+        raise links.LinkError("Remote proxy must look like host:port, e.g. proxy.example.com:8080")
+    return host, int(port)
+
+
+def _fill_server(s, f, files=None):
     """Apply the form to a Server. Raises links.LinkError with a friendly message."""
     proto = f.get("protocol", "ssh")
     if proto not in PROTOCOLS:
@@ -103,10 +120,17 @@ def _fill_server(s, f):
     if proto == "ssh":
         if not host or not port or not f.get("ssh_username", "").strip():
             raise links.LinkError("SSH needs host, port and username")
+        payload = f.get("ssh_payload", "")
+        up = files.get("payload_file") if files else None
+        if up and up.filename:
+            try:
+                payload = up.read(50_000).decode("utf-8")
+            except UnicodeDecodeError:
+                raise links.LinkError("The payload file is not plain text")
+        proxy_host, proxy_port = _parse_proxy(f.get("ssh_proxy", ""))
         cfg = {"username": f["ssh_username"].strip(), "password": f.get("ssh_password", ""),
-               "payload": f.get("ssh_payload", "").strip(), "sni": f.get("ssh_sni", "").strip(),
-               "proxy_host": f.get("ssh_proxy_host", "").strip(),
-               "proxy_port": f.get("ssh_proxy_port", type=int) or 0}
+               "payload": payload.strip(), "sni": f.get("ssh_sni", "").strip(),
+               "proxy_host": proxy_host, "proxy_port": proxy_port}
     elif proto == "v2ray":
         link = f.get("v2ray_link", "").strip()
         if not link and s.cfg.get("outbound"):
@@ -151,7 +175,7 @@ def server_form(sid=None):
     if request.method == "POST":
         target = s or Server(protocol="ssh", data="{}")
         try:
-            _fill_server(target, request.form)
+            _fill_server(target, request.form, request.files)
         except links.LinkError as e:
             flash(str(e), "error")
             values = {**values, **{k: v for k, v in request.form.items()},
@@ -313,6 +337,8 @@ def import_bundle_route():
     up = request.files.get("bundle")
     try:
         data = json.loads(up.read().decode("utf-8")) if up and up.filename else None
+        if is_locked(data):
+            data = json.loads(unlock(data, current_app.config["CONFIG_KEY"]).decode("utf-8"))
         n_s, n_t = import_bundle(data, replace=bool(request.form.get("replace")))
         flash(f"Imported {n_s} server(s) and {n_t} tweak(s).", "ok")
     except (ValueError, KeyError, TypeError) as e:
@@ -324,16 +350,52 @@ def import_bundle_route():
 @bp.get("/export")
 @admin_required
 def export():
-    body = json.dumps(build_bundle(public=False), indent=2, ensure_ascii=False)
-    return Response(body, mimetype="application/json",
+    """Share file for users: locked when CONFIG_KEY is set. ?plain=1 gives a readable admin backup."""
+    plain = json.dumps(build_bundle(public=False), indent=2, ensure_ascii=False)
+    key = current_app.config["CONFIG_KEY"]
+    if request.args.get("plain") or not key:
+        name = "genzvpn-backup-PLAIN.json" if key else "genzvpn-config.json"
+        return Response(plain, mimetype="application/json",
+                        headers={"Content-Disposition": f"attachment; filename={name}"})
+    return Response(lock(plain.encode(), key), mimetype="application/json",
                     headers={"Content-Disposition": "attachment; filename=genzvpn-config.json"})
 
 
 @bp.post("/settings")
 @admin_required
 def settings():
-    set_setting("announcement", request.form.get("announcement", "").strip()[:300])
-    bump_rev()
-    db.session.commit()
-    flash("Saved.", "ok")
+    url = request.form.get("channel_url", "").strip()
+    ok = not url or re.match(r"^https://(www\.)?whatsapp\.com/channel/[A-Za-z0-9_-]+/?$", url)
+    if not ok:
+        flash("That does not look like a WhatsApp channel link (https://whatsapp.com/channel/...).", "error")
+    else:
+        set_setting("channel_url", url)
+        bump_rev()
+        db.session.commit()
+        flash("Saved.", "ok")
     return redirect(url_for("admin.home", tab="settings"))
+
+
+@bp.post("/notices")
+@admin_required
+def notice_add():
+    title, message = request.form.get("title", "").strip()[:80], request.form.get("message", "").strip()[:1000]
+    if not title:
+        flash("Give the notification a title.", "error")
+    else:
+        db.session.add(Notice(title=title, message=message))
+        bump_rev()
+        db.session.commit()
+        flash("Sent. Users see it after they tap Update.", "ok")
+    return redirect(url_for("admin.home", tab="notices"))
+
+
+@bp.post("/notices/<int:nid>/delete")
+@admin_required
+def notice_delete(nid):
+    n = db.session.get(Notice, nid)
+    if n:
+        db.session.delete(n)
+        bump_rev()
+        db.session.commit()
+    return redirect(url_for("admin.home", tab="notices"))

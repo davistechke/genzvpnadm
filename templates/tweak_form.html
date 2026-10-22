@@ -25,16 +25,16 @@
     <div><label>Order</label><input name="sort" type="number" value="{{ v.sort }}"></div>
   </div>
 
-  <label>Show for types</label>
+  <label>Limit to types (optional)</label>
   <div class="checks">{% for p in ['ssh','v2ray','wireguard','custom'] %}
     <label><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p in v.protocols }}> {{ p }}</label>{% endfor %}</div>
-  <p class="hint">Tick none to show it for every type.</p>
+  <p class="hint">Tick none to allow every type.</p>
 
   {% if servers %}
-  <label>Only for these servers</label>
+  <label>Attach to these servers</label>
   <div class="checks">{% for s in servers %}
     <label><input type="checkbox" name="server_ids" value="{{ s.id }}" {{ 'checked' if s.id|string in v.server_ids }}> {{ s.name }}</label>{% endfor %}</div>
-  <p class="hint">Tick none to show it for all servers.</p>
+  <p class="hint">The tweak is applied automatically when a user picks one of the ticked servers. Tick none and it is not used.</p>
   {% endif %}
 
   <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="is_active" value="1" {{ 'checked' if v.is_active }} style="width:auto"> Visible to users</label></p>
