@@ -15,7 +15,7 @@ def _apk_path():
 def index():
     has_apk = os.path.exists(os.path.join(_apk_path(), "genzvpn.apk"))
     b = build_bundle(public=True)
-    return render_template("landing.html", has_apk=has_apk, server_count=len(b["servers"]))
+    return render_template("landing.html", has_apk=has_apk, tweak_count=len(b["tweaks"]))
 
 
 @bp.get("/download")

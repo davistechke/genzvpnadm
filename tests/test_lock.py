@@ -20,7 +20,7 @@ def login(app):
 def test_locked_api_export_and_import(tmp_path):
     app = make(tmp_path, "s3cret-key")
     c = login(app)
-    post(c, "/admin/servers/new", {"name": "Secret One", "protocol": "ssh", "host": "10.1.2.3", "port": "2222",
+    post(c, "/admin/tweaks/new", {"name": "Secret One", "protocol": "ssh", "host": "10.1.2.3", "port": "2222",
                                    "ssh_username": "bob", "ssh_password": "hunter2", "ssh_proxy": "px.example.com:8080",
                                    "ssh_payload": "GET / HTTP/1.1[crlf][crlf]", "is_active": "1"})
     pub = app.test_client()
@@ -31,7 +31,7 @@ def test_locked_api_export_and_import(tmp_path):
     body = json.loads(raw)
     assert lk.is_locked(body)
     plain = json.loads(lk.unlock(body, "s3cret-key"))
-    assert plain["servers"][0]["ssh"]["password"] == "hunter2"
+    assert plain["tweaks"][0]["ssh"]["password"] == "hunter2"
     assert pub.get("/api/v1/config", headers={"If-None-Match": r.headers["ETag"]}).status_code == 304
 
     shared = c.get("/admin/export")
@@ -44,7 +44,7 @@ def test_locked_api_export_and_import(tmp_path):
         r = c.post("/admin/import-bundle", data={"csrf": csrf(c, "/admin/?tab=backup"), "replace": "1",
                    "bundle": (io.BytesIO(blob), "c.json")}, content_type="multipart/form-data")
         assert r.status_code == 302
-        assert json.loads(lk.unlock(json.loads(pub.get("/api/v1/config").data), "s3cret-key"))["servers"][0]["name"] == "Secret One"
+        assert json.loads(lk.unlock(json.loads(pub.get("/api/v1/config").data), "s3cret-key"))["tweaks"][0]["name"] == "Secret One"
 
     other = make(tmp_path, "different-key")  # wrong key on import is refused, not half-applied
     oc = login(other)

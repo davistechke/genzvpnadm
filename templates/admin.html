@@ -6,54 +6,36 @@
 {% endblock %}
 {% block content %}
 <div class="tabs">
-  {% for t, label in [('servers','Servers'),('tweaks','Tweaks'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  {% for t, label in [('tweaks','Tweaks'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
   <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
   {% endfor %}
 </div>
 
-{% if tab == 'servers' %}
-<p><a class="btn" href="{{ url_for('admin.server_form') }}">Add server</a></p>
-<div class="scroll"><table class="ledger">
-  <thead><tr><th>Server</th><th>Type</th><th>Host</th><th>Expires</th><th>State</th><th></th></tr></thead>
-  {% for s in servers %}
-  <tr>
-    <td><a href="{{ url_for('admin.server_form', sid=s.id) }}">{{ s.country_code | flag }} {{ s.name }}</a><br><span class="hint">{{ s.note }}</span></td>
-    <td><span class="proto">{{ s.protocol }}</span></td>
-    <td>{{ s.host }}{% if s.port %}:{{ s.port }}{% endif %}</td>
-    <td>{{ s.expires_at.strftime('%d %b %Y') if s.expires_at else '–' }}</td>
-    <td><span class="badge {{ 'on' if s.is_active else 'off' }}">{{ 'live' if s.is_active else 'hidden' }}</span></td>
-    <td>
-      <form class="inline" method="post" action="{{ url_for('admin.server_toggle', sid=s.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if s.is_active else 'Show' }}</button></form>
-      <form class="inline" method="post" action="{{ url_for('admin.server_duplicate', sid=s.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">Copy</button></form>
-      <form class="inline" method="post" action="{{ url_for('admin.server_delete', sid=s.id) }}" data-confirm="Delete {{ s.name }}?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
-    </td>
-  </tr>
-  {% else %}<tr><td colspan="6" class="muted">No servers yet. Add one, or paste many at once under Quick import.</td></tr>{% endfor %}
-</table></div>
-
-{% elif tab == 'tweaks' %}
+{% if tab == 'tweaks' %}
 <p><a class="btn" href="{{ url_for('admin.tweak_form') }}">Add tweak</a></p>
 <div class="scroll"><table class="ledger">
-  <thead><tr><th>Tweak</th><th>Applies to</th><th>Has</th><th>State</th><th></th></tr></thead>
+  <thead><tr><th>Tweak</th><th>Type</th><th>Host</th><th>Expires</th><th>State</th><th></th></tr></thead>
   {% for t in tweaks %}
   <tr>
-    <td><a href="{{ url_for('admin.tweak_form', tid=t.id) }}">{{ t.name }}</a><br><span class="hint">{{ t.description }}</span></td>
-    <td>{{ t.protocols.replace(',', ', ') if t.protocols else 'all types' }}{% if t.server_ids %} · attached to {{ t.server_ids.split(',') | length }} server(s){% else %} · not attached (unused){% endif %}</td>
-    <td class="hint">{% if t.payload %}payload {% endif %}{% if t.sni %}SNI {% endif %}{% if t.host_header %}host {% endif %}{% if t.proxy_host %}proxy {% endif %}{% if t.dns %}DNS{% endif %}</td>
+    <td><a href="{{ url_for('admin.tweak_form', sid=t.id) }}">{{ t.country_code | flag }} {{ t.name }}</a><br><span class="hint">{{ t.description }}</span></td>
+    <td><span class="proto">{{ t.protocol }}</span></td>
+    <td>{{ t.host }}{% if t.port %}:{{ t.port }}{% endif %}</td>
+    <td>{{ t.expires_at.strftime('%d %b %Y') if t.expires_at else '–' }}</td>
     <td><span class="badge {{ 'on' if t.is_active else 'off' }}">{{ 'live' if t.is_active else 'hidden' }}</span></td>
     <td>
-      <form class="inline" method="post" action="{{ url_for('admin.tweak_toggle', tid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if t.is_active else 'Show' }}</button></form>
-      <form class="inline" method="post" action="{{ url_for('admin.tweak_delete', tid=t.id) }}" data-confirm="Delete {{ t.name }}?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.tweak_toggle', sid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if t.is_active else 'Show' }}</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.tweak_duplicate', sid=t.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">Copy</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.tweak_delete', sid=t.id) }}" data-confirm="Delete {{ t.name }}?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
     </td>
   </tr>
-  {% else %}<tr><td colspan="5" class="muted">No tweaks yet. Users will just see "Default".</td></tr>{% endfor %}
+  {% else %}<tr><td colspan="6" class="muted">No tweaks yet. Add one, or paste many at once under Quick import.</td></tr>{% endfor %}
 </table></div>
 
 {% elif tab == 'notices' %}
 <div class="panel">
   <h3>Send a notification to app users</h3>
   <form method="post" action="{{ url_for('admin.notice_add') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
-    <label>Title</label><input name="title" maxlength="80" placeholder="New Nairobi server" required>
+    <label>Title</label><input name="title" maxlength="80" placeholder="New Kenya tweak" required>
     <label>Message</label><textarea name="message" rows="4" maxlength="1000" placeholder="Details users should know"></textarea>
     <p><button class="btn">Send</button></p>
     <p class="hint">Users see it in the app's Notifications screen after they tap Update or import a new config file.</p>
@@ -69,22 +51,22 @@
 
 {% elif tab == 'import' %}
 <div class="panel">
-  <h3>Paste many servers at once</h3>
+  <h3>Paste many tweaks at once</h3>
   <p class="hint">One per line. V2Ray links (<span class="code">vmess://</span> <span class="code">vless://</span> <span class="code">trojan://</span> <span class="code">ss://</span>) and SSH accounts as <span class="code">host:port@user:password</span> both work.</p>
   <form method="post" action="{{ url_for('admin.import_links') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <textarea name="lines" rows="8" placeholder="vless://...&#10;1.2.3.4:22@user:pass"></textarea>
-    <p><button class="btn">Add servers</button></p>
+    <p><button class="btn">Add tweaks</button></p>
   </form>
 </div>
 
 {% elif tab == 'backup' %}
 <div class="panel stack">
   <h3>Config file for offline sharing</h3>
-  <p>Download the full config and send it to users through WhatsApp, Bluetooth or Shareit. They tap Import in the app, so they need no data at all. You can also put it in <span class="code">android/app/src/main/assets/default_config.json</span> so the app ships with these servers built in.</p>
+  <p>Download the full config and send it to users through WhatsApp, Bluetooth or Shareit. They tap Import in the app, so they need no data at all. You can also put it in <span class="code">android/app/src/main/assets/default_config.json</span> so the app ships with these tweaks built in.</p>
   <p><a class="btn" href="{{ url_for('admin.export') }}">Download genzvpn-config.json</a>
      <a class="btn ghost" href="{{ url_for('admin.export', plain=1) }}">Plain backup (shows passwords)</a></p>
   <p class="hint">{% if locked %}Locked: unreadable without the app's key, so users can't read hosts, proxies or passwords from it.{% else %}Not locked yet. Set CONFIG_KEY on the server (and in the app) so shared files and the app's download are unreadable.{% endif %}
-    The plain backup is only for you; keep it private. Config revision {{ rev }}. These files include hidden servers; the app's public download does not.</p>
+    The plain backup is only for you; keep it private. Config revision {{ rev }}. These files include hidden tweaks; the app's public download does not.</p>
 </div>
 <div class="panel">
   <h3>Restore or import a config file</h3>

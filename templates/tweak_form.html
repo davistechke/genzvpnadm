@@ -5,37 +5,64 @@
 {% endblock %}
 {% block content %}
 <h2>{{ 'Edit ' ~ t.name if t else 'Add a tweak' }}</h2>
-<form method="post" class="panel" enctype="multipart/form-data">
+<form method="post" class="panel" id="tweak-form" enctype="multipart/form-data">
   <input type="hidden" name="csrf" value="{{ csrf_token() }}">
   <div class="grid2">
-    <div><label>Name</label><input name="name" value="{{ v.name }}" placeholder="Websocket payload" maxlength="80"></div>
-    <div><label>Short description</label><input name="description" value="{{ v.description }}" maxlength="200" placeholder="Try this first on mobile data"></div>
+    <div><label for="name">Name</label><input id="name" name="name" value="{{ v.name }}" placeholder="Kenya SSH 1" maxlength="80"></div>
+    <div><label for="protocol">Type</label>
+      <select id="protocol" name="protocol">
+        {% for p, label in [('ssh','SSH tunnel'),('v2ray','V2Ray (vmess / vless / trojan / shadowsocks)'),('wireguard','UDP · WireGuard'),('custom','Custom Xray outbound (JSON)')] %}
+        <option value="{{ p }}" {{ 'selected' if v.protocol == p }}>{{ label }}</option>{% endfor %}
+      </select></div>
+    <div><label for="country_code">Country code</label><input id="country_code" name="country_code" value="{{ v.country_code }}" maxlength="2" placeholder="KE"><p class="hint">Optional. Two letters, like KE, US, DE. Shows a flag next to the name.</p></div>
+    <div><label for="description">Short description</label><input id="description" name="description" value="{{ v.description }}" maxlength="200" placeholder="Fast, 100 users max"></div>
+    <div><label for="expires_at">Hide after (optional)</label><input id="expires_at" name="expires_at" value="{{ v.expires_at }}" placeholder="2026-12-31"></div>
+    <div><label for="sort">Order (lower = first)</label><input id="sort" name="sort" type="number" value="{{ v.sort }}"></div>
   </div>
 
-  <label>Payload (SSH)</label>
-  <textarea name="payload" rows="4" placeholder="GET / HTTP/1.1[crlf]Host: [host][crlf]Upgrade: websocket[crlf][crlf]">{{ v.payload }}</textarea>
-  <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above). Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+  <div data-group="ssh">
+    <h3 style="margin-top:22px">SSH settings</h3>
 
-  <div class="grid2">
-    <div><label>SNI</label><input name="sni" value="{{ v.sni }}" placeholder="TLS server name to present"></div>
-    <div><label>Host header</label><input name="host_header" value="{{ v.host_header }}" placeholder="websocket / httpupgrade host"></div>
-    <div><label>Proxy / connect host</label><input name="proxy_host" value="{{ v.proxy_host }}" placeholder="SSH: HTTP proxy. V2Ray: address to dial"></div>
-    <div><label>Proxy / connect port</label><input name="proxy_port" type="number" value="{{ v.proxy_port }}"></div>
-    <div><label>DNS server</label><input name="dns" value="{{ v.dns }}" placeholder="1.1.1.1"></div>
-    <div><label>Order</label><input name="sort" type="number" value="{{ v.sort }}"></div>
+    <label>Remote proxy</label>
+    <input name="ssh_proxy" value="{{ v.ssh_proxy }}" placeholder="proxy.example.com:8080" style="max-width:420px">
+    <p class="hint">Optional, as host:port. The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
+
+    <label>Payload</label>
+    <textarea name="ssh_payload" rows="3" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
+    <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above).
+      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+
+    <label>SSH host and port</label>
+    <div class="grid2">
+      <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
+      <div><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
+    </div>
+
+    <div class="grid2">
+      <div><label>SSH username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
+      <div><label>SSH password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
+    </div>
+
   </div>
 
-  <label>Limit to types (optional)</label>
-  <div class="checks">{% for p in ['ssh','v2ray','wireguard','custom'] %}
-    <label><input type="checkbox" name="protocols" value="{{ p }}" {{ 'checked' if p in v.protocols }}> {{ p }}</label>{% endfor %}</div>
-  <p class="hint">Tick none to allow every type.</p>
+  <div data-group="v2ray">
+    <h3 style="margin-top:22px">V2Ray link</h3>
+    <textarea name="v2ray_link" rows="3" placeholder="vmess://… vless://… trojan://… ss://…">{{ v.v2ray_link }}</textarea>
+    <p class="hint">Host and port are read from the link. {% if t %}Leave empty to keep the current link.{% endif %}</p>
+  </div>
 
-  {% if servers %}
-  <label>Attach to these servers</label>
-  <div class="checks">{% for s in servers %}
-    <label><input type="checkbox" name="server_ids" value="{{ s.id }}" {{ 'checked' if s.id|string in v.server_ids }}> {{ s.name }}</label>{% endfor %}</div>
-  <p class="hint">The tweak is applied automatically when a user picks one of the ticked servers. Tick none and it is not used.</p>
-  {% endif %}
+  <div data-group="wireguard">
+    <h3 style="margin-top:22px">WireGuard config</h3>
+    <textarea name="wg_conf" rows="9" placeholder="[Interface]&#10;PrivateKey = …&#10;Address = 10.8.0.2/32&#10;&#10;[Peer]&#10;PublicKey = …&#10;Endpoint = vpn.example.com:51820">{{ v.wg_conf }}</textarea>
+    <p class="hint">Paste a normal WireGuard client config. All users share this one identity, so use a dedicated peer with a limited bandwidth quota. {% if t %}Leave empty to keep the current one.{% endif %}</p>
+  </div>
+
+  <div data-group="custom">
+    <h3 style="margin-top:22px">Xray outbound JSON</h3>
+    <textarea name="custom_outbound" rows="10" placeholder='{"protocol": "...", "settings": {...}, "streamSettings": {...}}'>{{ v.custom_outbound }}</textarea>
+    <p class="hint">One outbound object, the same format Xray uses. Good for protocols without a share link here.</p>
+    <div class="grid2"><div><label>Host (display only)</label><input name="host" value="{{ v.host }}"></div><div><label>Port (display only)</label><input name="port" type="number" value="{{ v.port or '' }}"></div></div>
+  </div>
 
   <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="is_active" value="1" {{ 'checked' if v.is_active }} style="width:auto"> Visible to users</label></p>
   <p><button class="btn">Save tweak</button> <a class="btn ghost" href="{{ url_for('admin.home', tab='tweaks') }}">Cancel</a></p>
