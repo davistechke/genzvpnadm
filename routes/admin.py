@@ -88,7 +88,7 @@ def _tweak_values(s):
         "description": s.description if s else "", "sort": s.sort if s else 0, "is_active": s.is_active if s else True,
         "expires_at": s.expires_at.strftime("%Y-%m-%d") if s and s.expires_at else "",
         "ssh_username": cfg.get("username", ""), "ssh_password": cfg.get("password", ""),
-        "ssh_payload": cfg.get("payload", ""),
+        "ssh_payload": cfg.get("payload", ""), "ssh_sni": cfg.get("sni", ""),
         "ssh_proxy": (f"{cfg['proxy_host']}:{cfg.get('proxy_port') or ''}".rstrip(":") if cfg.get("proxy_host") else ""),
         "v2ray_link": cfg.get("link", ""), "wg_conf": cfg.get("wg_conf", ""),
         "custom_outbound": json.dumps(cfg["outbound"], indent=2) if s and s.protocol == "custom" and cfg.get("outbound") else "",

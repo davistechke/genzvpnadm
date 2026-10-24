@@ -7,7 +7,7 @@ from tests.test_admin import csrf, post  # reuse helpers
 
 
 def make(tmp_path, key):
-    return create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True,
+    return create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True, "SEED_DEFAULT_TWEAK": False,
                        "ADMIN_EMAIL": "boss@x.co", "ADMIN_PASSWORD": "adminpass1", "CONFIG_KEY": key})
 
 

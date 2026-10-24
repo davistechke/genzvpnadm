@@ -22,6 +22,7 @@ class Config:
     # Locks the config the app downloads and the share file (AES-256-GCM). Put the same text in the Android
     # app's CONFIG_KEY. Empty = configs are served as plain JSON.
     CONFIG_KEY = os.getenv("CONFIG_KEY", "")
+    SEED_DEFAULT_TWEAK = os.getenv("SEED_DEFAULT_TWEAK", "1") == "1"  # add AIRTEL CAP on first start
     MAX_CONTENT_LENGTH = 2 * 1024 * 1024  # uploads: payload files, config bundles
     # Optional: first admin is created automatically on startup when both are set.
     ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")

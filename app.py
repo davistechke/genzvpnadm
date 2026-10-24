@@ -55,6 +55,9 @@ def create_app(overrides=None):
             a.set_password(pw)
             db.session.add(a)
             db.session.commit()
+        if app.config["SEED_DEFAULT_TWEAK"]:
+            from services.defaults import seed_default_tweak
+            seed_default_tweak()
 
     @app.cli.command("create-admin")
     @click.argument("email")

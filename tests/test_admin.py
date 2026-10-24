@@ -12,7 +12,7 @@ from models import Admin, Tweak, db
 
 @pytest.fixture()
 def app(tmp_path):
-    return create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True,
+    return create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True, "SEED_DEFAULT_TWEAK": False,
                        "ADMIN_EMAIL": "boss@x.co", "ADMIN_PASSWORD": "adminpass1"})
 
 

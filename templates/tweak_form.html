@@ -30,13 +30,17 @@
     <label>Payload</label>
     <textarea name="ssh_payload" rows="3" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
     <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above).
-      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span> <span class="code">[netData]</span> <span class="code">[method]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
 
     <label>SSH host and port</label>
     <div class="grid2">
       <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
       <div><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
     </div>
+
+    <label>SNI / bug host (only if your HTTP Custom config uses SSL/TLS)</label>
+    <input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="bug.example.com" style="max-width:420px">
+    <p class="hint">Optional. Fill it when the working config is "SSH + SSL/TLS". The app then wraps the SSH link in TLS using this name, and the payload (if any) goes inside it.</p>
 
     <div class="grid2">
       <div><label>SSH username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
