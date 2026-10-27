@@ -102,10 +102,34 @@ def _parse_proxy(text):
         return "", 0
     host, _, port = text.rpartition(":")
     if not host:
-        return text, 8080  # host only: assume the usual proxy port
+        return text, 80  # host only: plain HTTP proxy port, which is what injector apps assume
     if not port.isdigit() or not 0 < int(port) < 65536:
         raise links.LinkError("Remote proxy must look like host:port, e.g. proxy.example.com:8080")
     return host, int(port)
+
+
+def _split_host_port(host, port):
+    """Accept 'host:port' (or '[ipv6]:port') typed into the host box, as injector apps show it."""
+    host = re.sub(r"^[a-z]+://", "", (host or "").strip(), flags=re.I).rstrip("/")
+    if host.startswith("["):
+        h, _, rest = host.partition("]")
+        if rest.startswith(":") and rest[1:].isdigit():
+            return h[1:], int(rest[1:])
+        return host, port
+    if host.count(":") == 1:
+        h, p = host.split(":")
+        if p.isdigit() and 0 < int(p) < 65536:
+            return h.strip(), int(p)
+    return host, port
+
+
+def _normalize_payload(text):
+    """A real line break in the payload box means "next header line". Store it as [crlf] so what is saved is
+    exactly what is sent. A break inside a [tag], or right after a [crlf]-style tag, is just text wrapping."""
+    t = (text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    t = re.sub(r"\[[^\]]*\]", lambda m: m.group(0).replace("\n", ""), t)
+    t = re.sub(r"(?i)(\[(?:crlf|lf|cr)\])\n+", r"\1", t)
+    return t.replace("\n", "[crlf]")
 
 
 def _fill_tweak(s, f, files=None):
@@ -117,6 +141,7 @@ def _fill_tweak(s, f, files=None):
     host, port = f.get("host", "").strip(), f.get("port", type=int) or 0
     cfg = {}
     if proto == "ssh":
+        host, port = _split_host_port(host, port)
         if not host or not port or not f.get("ssh_username", "").strip():
             raise links.LinkError("SSH needs the SSH host, port and username")
         payload = f.get("ssh_payload", "")
@@ -128,7 +153,7 @@ def _fill_tweak(s, f, files=None):
                 raise links.LinkError("The payload file is not plain text")
         proxy_host, proxy_port = _parse_proxy(f.get("ssh_proxy", ""))
         cfg = {"username": f["ssh_username"].strip(), "password": f.get("ssh_password", ""),
-               "payload": payload.strip(), "sni": f.get("ssh_sni", s.cfg.get("sni", "")).strip(),
+               "payload": _normalize_payload(payload), "sni": f.get("ssh_sni", s.cfg.get("sni", "")).strip(),
                "proxy_host": proxy_host, "proxy_port": proxy_port}
     elif proto == "v2ray":
         link = f.get("v2ray_link", "").strip()

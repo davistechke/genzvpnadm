@@ -34,3 +34,14 @@ def test_seeded_even_when_other_tweaks_exist(tmp_path):
     app2 = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True})
     with app2.app_context():
         assert sorted(x.name for x in Tweak.query) == ["AIRTEL CAP", "Mine"]
+
+
+def test_admin_forms_behave_like_the_injector_apps(tmp_path):
+    from routes.admin import _normalize_payload, _parse_proxy, _split_host_port
+    assert _split_host_port("suzuki.turbo-ssh.uk:443", 22) == ("suzuki.turbo-ssh.uk", 443)
+    assert _split_host_port("[2001:db8::1]:2222", 22) == ("2001:db8::1", 2222)
+    assert _split_host_port("ssh.example.com", 22) == ("ssh.example.com", 22)
+    assert _parse_proxy("apptest.example.com") == ("apptest.example.com", 80)
+    raw = "GET / HTTP/1.1[crlf]Host: [rotate=a.com;\nb.com][crlf]\nConnection: Upgrade\nUpgrade: websocket\nX: y[crlf][crlf]\n"
+    assert _normalize_payload(raw) == ("GET / HTTP/1.1[crlf]Host: [rotate=a.com;b.com][crlf]Connection: Upgrade"
+                                       "[crlf]Upgrade: websocket[crlf]X: y[crlf][crlf]")

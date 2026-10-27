@@ -25,16 +25,16 @@
 
     <label>Remote proxy</label>
     <input name="ssh_proxy" value="{{ v.ssh_proxy }}" placeholder="proxy.example.com:8080" style="max-width:420px">
-    <p class="hint">Optional, as host:port. The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
+    <p class="hint">Optional, as host:port (port 80 if you leave it out). The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
 
     <label>Payload</label>
     <textarea name="ssh_payload" rows="3" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
     <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above).
-      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span> <span class="code">[netData]</span> <span class="code">[method]</span>. Line breaks in the box are ignored, so use <span class="code">[crlf]</span>.</p>
+      Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span> <span class="code">[netData]</span> <span class="code">[method]</span>. A new line in the box counts as <span class="code">[crlf]</span>. <span class="code">[rotate=a;b;c]</span> tries each option in turn.</p>
 
     <label>SSH host and port</label>
     <div class="grid2">
-      <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com"></div>
+      <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com or ssh.example.com:443"></div>
       <div><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
     </div>
 
