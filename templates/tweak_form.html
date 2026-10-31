@@ -11,7 +11,7 @@
     <div><label for="name">Name</label><input id="name" name="name" value="{{ v.name }}" placeholder="Kenya SSH 1" maxlength="80"></div>
     <div><label for="protocol">Type</label>
       <select id="protocol" name="protocol">
-        {% for p, label in [('ssh','SSH tunnel'),('v2ray','V2Ray (vmess / vless / trojan / shadowsocks)'),('wireguard','UDP · WireGuard'),('custom','Custom Xray outbound (JSON)')] %}
+        {% for p, label in [('ssh','SSH tunnel'),('v2ray','V2Ray (VLESS / VMess)'),('udp','UDP (Hysteria 2)'),('wireguard','UDP · WireGuard'),('custom','Custom Xray outbound (JSON)')] %}
         <option value="{{ p }}" {{ 'selected' if v.protocol == p }}>{{ label }}</option>{% endfor %}
       </select></div>
     <div><label for="country_code">Country code</label><input id="country_code" name="country_code" value="{{ v.country_code }}" maxlength="2" placeholder="KE"><p class="hint">Optional. Two letters, like KE, US, DE. Shows a flag next to the name.</p></div>
@@ -21,38 +21,75 @@
   </div>
 
   <div data-group="ssh">
-    <h3 style="margin-top:22px">SSH settings</h3>
+    <h3 style="margin-top:22px">Server</h3>
+    <div class="grid2">
+      <div><label>SSH host</label><input name="host" value="{{ v.host }}" placeholder="ssh.example.com or ssh.example.com:443"></div>
+      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
+    </div>
+    <label>SNI / bug host (only if your config uses SSL/TLS)</label>
+    <input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="bug.example.com" style="max-width:420px">
+    <p class="hint">Optional. The app then wraps the SSH link in TLS using this name, and the payload (if any) goes inside it.</p>
 
-    <label>Remote proxy</label>
-    <input name="ssh_proxy" value="{{ v.ssh_proxy }}" placeholder="proxy.example.com:8080" style="max-width:420px">
-    <p class="hint">Optional, as host:port (port 80 if you leave it out). The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
+    <h3 style="margin-top:22px">Account</h3>
+    <div class="grid2">
+      <div><label>Username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
+      <div><label>Password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
+    </div>
 
-    <label>Payload</label>
-    <textarea name="ssh_payload" rows="3" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
+    <h3 style="margin-top:22px">Payload</h3>
+    <textarea name="ssh_payload" rows="4" placeholder="CONNECT [host_port] HTTP/1.1[crlf]Host: [host][crlf][crlf]">{{ v.ssh_payload }}</textarea>
     <p class="hint">Or upload a text file: <input type="file" name="payload_file" accept=".txt,text/plain" style="max-width:260px"> (replaces the box above).
       Placeholders: <span class="code">[host]</span> <span class="code">[port]</span> <span class="code">[host_port]</span> <span class="code">[crlf]</span> <span class="code">[cr]</span> <span class="code">[lf]</span> <span class="code">[protocol]</span> <span class="code">[ua]</span> <span class="code">[split]</span> <span class="code">[netData]</span> <span class="code">[method]</span>. A new line in the box counts as <span class="code">[crlf]</span>. <span class="code">[rotate=a;b;c]</span> tries each option in turn.</p>
 
-    <label>SSH host and port</label>
-    <div class="grid2">
-      <div><input name="host" value="{{ v.host }}" placeholder="ssh.example.com or ssh.example.com:443"></div>
-      <div><input name="port" type="number" value="{{ v.port or 22 }}" placeholder="22"></div>
-    </div>
-
-    <label>SNI / bug host (only if your HTTP Custom config uses SSL/TLS)</label>
-    <input name="ssh_sni" value="{{ v.ssh_sni }}" placeholder="bug.example.com" style="max-width:420px">
-    <p class="hint">Optional. Fill it when the working config is "SSH + SSL/TLS". The app then wraps the SSH link in TLS using this name, and the payload (if any) goes inside it.</p>
-
-    <div class="grid2">
-      <div><label>SSH username</label><input name="ssh_username" value="{{ v.ssh_username }}" autocomplete="off"></div>
-      <div><label>SSH password</label><input name="ssh_password" value="{{ v.ssh_password }}" autocomplete="off"></div>
-    </div>
-
+    <h3 style="margin-top:22px">Remote proxy</h3>
+    <input name="ssh_proxy" value="{{ v.ssh_proxy }}" placeholder="proxy.example.com:80" style="max-width:420px">
+    <p class="hint">Optional, as host:port (port 80 if you leave it out). The app connects to this proxy first and sends the payload to it. Leave empty to connect straight to the SSH host.</p>
   </div>
 
   <div data-group="v2ray">
-    <h3 style="margin-top:22px">V2Ray link</h3>
-    <textarea name="v2ray_link" rows="3" placeholder="vmess://… vless://… trojan://… ss://…">{{ v.v2ray_link }}</textarea>
-    <p class="hint">Host and port are read from the link. {% if t %}Leave empty to keep the current link.{% endif %}</p>
+    <h3 style="margin-top:22px">Server</h3>
+    <div class="grid2">
+      <div><label>Server host</label><input name="host" value="{{ v.host }}" placeholder="v2.example.com"></div>
+      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 443 }}" placeholder="443"></div>
+    </div>
+
+    <h3 style="margin-top:22px">Account</h3>
+    <div class="grid2">
+      <div><label>UUID</label><input name="v2_uuid" value="{{ v.v2_uuid }}" autocomplete="off" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div>
+      <div><label>Protocol</label>
+        <select name="v2_proto">{% for p in ['vless','vmess'] %}<option value="{{ p }}" {{ 'selected' if v.v2_proto == p }}>{{ p | upper }}</option>{% endfor %}</select></div>
+    </div>
+
+    <h3 style="margin-top:22px">Transport</h3>
+    <div class="grid2">
+      <div><label>Type</label>
+        <select name="v2_network">{% for n, l in [('ws','WebSocket'),('httpupgrade','HTTP Upgrade'),('tcp','TCP')] %}<option value="{{ n }}" {{ 'selected' if v.v2_network == n }}>{{ l }}</option>{% endfor %}</select></div>
+      <div><label>Path</label><input name="v2_path" value="{{ v.v2_path }}" placeholder="/ws"></div>
+      <div><label>Host header</label><input name="v2_hosthdr" value="{{ v.v2_hosthdr }}" placeholder="bug.example.com"></div>
+      <div><label>SNI (optional)</label><input name="v2_sni" value="{{ v.v2_sni }}" placeholder="same as host header if empty"></div>
+    </div>
+    <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="v2_tls" value="1" {{ 'checked' if v.v2_tls }} style="width:auto"> TLS (turn on for port 443)</label></p>
+
+    <details style="margin-top:14px"><summary>Or paste a share link instead</summary>
+      <textarea name="v2ray_link" rows="3" placeholder="vmess:// vless:// trojan:// ss://">{{ v.v2ray_link }}</textarea>
+      <p class="hint">Used only when the UUID above is empty. Trojan and Shadowsocks links work here. {% if t %}Leave both empty to keep the current config.{% endif %}</p>
+    </details>
+  </div>
+
+  <div data-group="udp">
+    <h3 style="margin-top:22px">Server</h3>
+    <div class="grid2">
+      <div><label>Server host</label><input name="host" value="{{ v.host }}" placeholder="udp.example.com"></div>
+      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 443 }}" placeholder="443"></div>
+    </div>
+    <h3 style="margin-top:22px">Account</h3>
+    <div class="grid2">
+      <div><label>Username</label><input name="udp_username" value="{{ v.udp_username }}" autocomplete="off"></div>
+      <div><label>Password</label><input name="udp_password" value="{{ v.udp_password }}" autocomplete="off"></div>
+      <div><label>SNI (optional)</label><input name="udp_sni" value="{{ v.udp_sni }}" placeholder="same as the host if empty"></div>
+    </div>
+    <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="udp_insecure" value="1" {{ 'checked' if v.udp_insecure }} style="width:auto"> Accept a self-signed certificate</label></p>
+    <p class="hint">This type speaks Hysteria 2 (QUIC over UDP), so the server must run Hysteria 2. Servers for other UDP apps, such as UDP Custom or ZIVPN, use different protocols and will not connect.</p>
   </div>
 
   <div data-group="wireguard">

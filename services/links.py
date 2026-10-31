@@ -59,6 +59,34 @@ def _hostport(u):
     return u.hostname, u.port
 
 
+def build_v2ray(proto, host, port, uuid, network="ws", path="", host_header="", tls=True, sni=""):
+    """Server (host, port) + account (UUID) + transport (path, host header) -> an Xray VLESS or VMess outbound."""
+    if proto not in ("vless", "vmess"):
+        raise LinkError("Pick VLESS or VMess")
+    if not host or not port or not uuid:
+        raise LinkError("V2Ray needs the server host, port and UUID")
+    if network not in ("ws", "tcp", "httpupgrade"):
+        raise LinkError("Pick a transport")
+    user = {"id": uuid, "encryption": "none"} if proto == "vless" else {"id": uuid, "alterId": 0, "security": "auto"}
+    return {"protocol": proto, "tag": "proxy",
+            "settings": {"vnext": [{"address": host, "port": port, "users": [user]}]},
+            "streamSettings": _stream(network, "tls" if tls else "none", host=host_header, path=path,
+                                      sni=sni or host_header or host)}
+
+
+def build_udp(host, port, username, password, sni="", insecure=True):
+    """Server (host, port) + account (username, password) -> a Hysteria 2 outbound (QUIC over UDP).
+    The login is sent as 'username:password', Hysteria 2's user/password format."""
+    if not host or not port or not password:
+        raise LinkError("UDP needs the server host, port and password")
+    auth = f"{username}:{password}" if username else password
+    return {"protocol": "hysteria", "tag": "proxy",
+            "settings": {"version": 2, "address": host, "port": port},
+            "streamSettings": {"network": "hysteria", "security": "tls",
+                               "tlsSettings": {"serverName": sni or host, "alpn": ["h3"], "allowInsecure": bool(insecure)},
+                               "hysteriaSettings": {"version": 2, "auth": auth}}}
+
+
 def parse_link(link):
     """Returns {"name", "host", "port", "outbound"} or raises LinkError."""
     link = link.strip()

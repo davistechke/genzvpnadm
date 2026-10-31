@@ -12,7 +12,7 @@ from services.bundle import FORMAT, build_bundle, import_bundle
 from services.lock import is_locked, lock, unlock
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
-PROTOCOLS = ("ssh", "v2ray", "wireguard", "custom")
+PROTOCOLS = ("ssh", "v2ray", "udp", "wireguard", "custom")
 
 
 @bp.before_request
@@ -90,7 +90,14 @@ def _tweak_values(s):
         "ssh_username": cfg.get("username", ""), "ssh_password": cfg.get("password", ""),
         "ssh_payload": cfg.get("payload", ""), "ssh_sni": cfg.get("sni", ""),
         "ssh_proxy": (f"{cfg['proxy_host']}:{cfg.get('proxy_port') or ''}".rstrip(":") if cfg.get("proxy_host") else ""),
-        "v2ray_link": cfg.get("link", ""), "wg_conf": cfg.get("wg_conf", ""),
+        "v2ray_link": cfg.get("link", ""),
+        "v2_proto": cfg.get("form", {}).get("proto", "vless"), "v2_uuid": cfg.get("form", {}).get("uuid", ""),
+        "v2_network": cfg.get("form", {}).get("network", "ws"), "v2_path": cfg.get("form", {}).get("path", ""),
+        "v2_hosthdr": cfg.get("form", {}).get("host_header", ""), "v2_sni": cfg.get("form", {}).get("sni", ""),
+        "v2_tls": cfg.get("form", {}).get("tls", True),
+        "udp_username": cfg.get("form", {}).get("username", ""), "udp_password": cfg.get("form", {}).get("password", ""),
+        "udp_sni": cfg.get("form", {}).get("sni", ""), "udp_insecure": cfg.get("form", {}).get("insecure", True),
+        "wg_conf": cfg.get("wg_conf", ""),
         "custom_outbound": json.dumps(cfg["outbound"], indent=2) if s and s.protocol == "custom" and cfg.get("outbound") else "",
     }
 
@@ -156,13 +163,29 @@ def _fill_tweak(s, f, files=None):
                "payload": _normalize_payload(payload), "sni": f.get("ssh_sni", s.cfg.get("sni", "")).strip(),
                "proxy_host": proxy_host, "proxy_port": proxy_port}
     elif proto == "v2ray":
-        link = f.get("v2ray_link", "").strip()
-        if not link and s.cfg.get("outbound"):
-            cfg = s.cfg
-        else:
+        uuid, link = f.get("v2_uuid", "").strip(), f.get("v2ray_link", "").strip()
+        host, port = _split_host_port(host, port)
+        if uuid:
+            form = {"proto": f.get("v2_proto", "vless"), "uuid": uuid, "network": f.get("v2_network", "ws"),
+                    "path": f.get("v2_path", "").strip(), "host_header": f.get("v2_hosthdr", "").strip(),
+                    "sni": f.get("v2_sni", "").strip(), "tls": bool(f.get("v2_tls"))}
+            out = links.build_v2ray(form["proto"], host, port, uuid, form["network"], form["path"],
+                                    form["host_header"], form["tls"], form["sni"])
+            cfg = {"outbound": out, "form": form}
+        elif link:
             p = links.parse_link(link)
             cfg, host, port = {"link": link, "outbound": p["outbound"]}, p["host"], p["port"]
             name = name or p["name"]
+        elif s.cfg.get("outbound"):
+            cfg = s.cfg
+        else:
+            raise links.LinkError("V2Ray needs the server host, port and UUID (or paste a share link)")
+    elif proto == "udp":
+        host, port = _split_host_port(host, port)
+        form = {"username": f.get("udp_username", "").strip(), "password": f.get("udp_password", ""),
+                "sni": f.get("udp_sni", "").strip(), "insecure": bool(f.get("udp_insecure"))}
+        cfg = {"outbound": links.build_udp(host, port, form["username"], form["password"], form["sni"], form["insecure"]),
+               "form": form}
     elif proto == "wireguard":
         conf = f.get("wg_conf", "").strip()
         if not conf and s.cfg.get("outbound"):
