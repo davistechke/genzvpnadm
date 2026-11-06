@@ -6,7 +6,7 @@
 {% endblock %}
 {% block content %}
 <div class="tabs">
-  {% for t, label in [('tweaks','Tweaks'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  {% for t, label in [('tweaks','Tweaks'),('app','App (APK)'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
   <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
   {% endfor %}
 </div>
@@ -30,6 +30,58 @@
   </tr>
   {% else %}<tr><td colspan="6" class="muted">No tweaks yet. Add one, or paste many at once under Quick import.</td></tr>{% endfor %}
 </table></div>
+
+{% elif tab == 'app' %}
+<div class="stats">
+  <div class="stat"><b>{{ st.total }}</b><span class="muted">downloads</span></div>
+  <div class="stat"><b>{{ st.people }}</b><span class="muted">people</span></div>
+  <div class="stat"><b>{{ st.today }}</b><span class="muted">today</span></div>
+  <div class="stat"><b>{{ st.week }}</b><span class="muted">last 7 days</span></div>
+</div>
+<h3>Downloads per day</h3>
+<svg class="chart" viewBox="0 0 280 84" role="img" aria-label="Downloads per day for the last 14 days">
+  {% for b in st.bars %}
+  <rect class="bar" x="{{ b.x + 3 }}" y="{{ 60 - b.h }}" width="14" height="{{ b.h if b.h else 1 }}" rx="3"><title>{{ b.label }}: {{ b.n }}</title></rect>
+  <text class="axis" x="{{ b.x + 10 }}" y="74" text-anchor="middle">{{ b.day }}</text>
+  {% endfor %}
+</svg>
+<p class="hint">Last 14 days, East Africa Time. "People" counts different phones and browsers, so people sharing one mobile network can count as one. No one's address is stored.</p>
+
+<h3>Upload a new version</h3>
+<form method="post" action="{{ url_for('admin.apk_upload') }}" enctype="multipart/form-data" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <div><label for="app_name">App name</label><input id="app_name" name="app_name" value="{{ apps[0] if apps else 'GenzVPN' }}" required></div>
+    <div><label for="version">Version</label><input id="version" name="version" placeholder="1.0.0" required></div>
+  </div>
+  <div><label for="apk">APK file</label><input id="apk" name="apk" type="file" accept=".apk,application/vnd.android.package-archive" required>
+    <p class="hint">Up to {{ max_mb }} MB. It is stored in your database, so it is still there after a redeploy.</p></div>
+  <div><label for="notes">What is new</label><textarea id="notes" name="notes" rows="3" placeholder="Fixes and changes in this version"></textarea></div>
+  <div class="checks"><label><input type="checkbox" name="is_published" value="1" checked> Show the download button on the home page now</label></div>
+  <button class="btn">Upload</button>
+</form>
+
+<h3>Uploads</h3>
+{% if releases %}
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>App</th><th>Version</th><th>Size</th><th>Downloads <span class="muted">(people)</span></th><th>State</th><th></th></tr></thead>
+  {% for r in releases %}
+  <tr>
+    <td>{{ r.app_name }}<br><span class="hint">{{ r.created_at.strftime('%d %b %Y') }}</span></td>
+    <td>v{{ r.version }}</td>
+    <td>{{ r.size | filesize }}</td>
+    <td>{{ st.per_release.get(r.id, (0, 0))[0] }} <span class="muted">({{ st.per_release.get(r.id, (0, 0))[1] }})</span></td>
+    <td><span class="badge {{ 'on' if r.is_published else 'off' }}">{{ 'live' if r.is_published else 'hidden' }}</span></td>
+    <td>
+      <a class="btn ghost small" href="{{ url_for('admin.apk_edit', rid=r.id) }}">Edit</a>
+      <form class="inline" method="post" action="{{ url_for('admin.apk_toggle', rid=r.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if r.is_published else 'Publish' }}</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.apk_delete', rid=r.id) }}" data-confirm="Delete {{ r.app_name }} {{ r.version }}? The file and its download history are removed."><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table></div>
+<p class="hint">Share link that never changes (always the newest live version): <span class="code">{{ url_for('web.download', _external=True) }}</span></p>
+{% else %}<p class="muted">Nothing uploaded yet. The home page shows "Android app coming soon" until you upload and publish a version.</p>{% endif %}
 
 {% elif tab == 'notices' %}
 <div class="panel">

@@ -5,10 +5,12 @@
     <h1>Pick a tweak. Connect.</h1>
     <p>No sign-up, no login. Open the app, choose a tweak and tap once. The tweak list updates quietly when you have data and still work from the last copy when you don't.</p>
     <div class="cta">
-      {% if has_apk %}<a class="btn alt" href="{{ url_for('web.download') }}">Download for Android</a>
+      {% if apk %}<a class="btn alt" href="{{ url_for('web.download') }}">Download for Android</a>
+      {% elif has_apk %}<a class="btn alt" href="{{ url_for('web.download') }}">Download for Android</a>
       {% else %}<span class="btn ghost" aria-disabled="true">Android app coming soon</span>{% endif %}
     </div>
-    <p class="hint" style="margin-top:14px">{{ tweak_count }} tweak{{ 's' if tweak_count != 1 }} online right now.</p>
+    {% if apk %}<p class="hint apk-line">Version {{ apk.version }} · {{ apk.size | filesize }} · updated {{ apk.created_at.strftime('%d %b %Y') }}</p>{% endif %}
+    <p class="hint apk-line">{{ tweak_count }} tweak{{ '' if tweak_count == 1 else 's' }} online right now.</p>
   </div>
   <svg class="rings" viewBox="0 0 340 340" role="img" aria-label="Concentric rings forming a tunnel">
     <circle class="r4" cx="170" cy="170" r="160"/><circle class="r3" cx="170" cy="170" r="120"/>
@@ -21,4 +23,27 @@
   <div><h3>Tweaks</h3><p>Switch to another tweak in one tap when one is slow or blocked.</p></div>
   <div><h3>See your IP</h3><p>A live log shows your real IP and the new one once you are connected.</p></div>
 </section>
+{% if apk %}
+<section class="apk-card">
+  <div class="apk-head">
+    <div><h2>{{ apk.app_name }} <span class="proto">v{{ apk.version }}</span></h2>
+      <p class="hint">{{ apk.size | filesize }} · {{ apk.created_at.strftime('%d %b %Y') }} · {{ apk.downloads }} download{{ '' if apk.downloads == 1 else 's' }}</p></div>
+    <a class="btn alt" href="{{ url_for('web.download') }}">Download APK</a>
+  </div>
+  {% if apk.notes %}<p class="apk-notes">{{ apk.notes }}</p>{% endif %}
+  {% if apk.sha256 %}<p class="hint">SHA-256: <span class="code">{{ apk.sha256[:16] }}…{{ apk.sha256[-8:] }}</span></p>{% endif %}
+  {% if older %}
+  <details class="apk-older"><summary>Older versions ({{ older | length }})</summary>
+    <ul>{% for o in older %}<li><span>v{{ o.version }} <span class="hint">{{ o.created_at.strftime('%d %b %Y') }} · {{ o.size | filesize }}</span></span>
+      <a href="{{ url_for('web.download_version', rid=o.id) }}">Download</a></li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+  <h3>How to install</h3>
+  <ol class="apk-steps">
+    <li>Tap <b>Download APK</b>. If your browser says the file may be harmful, choose <b>Download anyway</b>. This warning shows for every app installed outside Google Play.</li>
+    <li>Open the file. When Android asks, allow your browser or file manager to <b>install unknown apps</b>.</li>
+    <li>Tap <b>Install</b>, then open the app.</li>
+  </ol>
+</section>
+{% endif %}
 {% endblock %}

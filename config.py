@@ -23,7 +23,10 @@ class Config:
     # app's CONFIG_KEY. Empty = configs are served as plain JSON.
     CONFIG_KEY = os.getenv("CONFIG_KEY", "")
     SEED_DEFAULT_TWEAK = os.getenv("SEED_DEFAULT_TWEAK", "1") == "1"  # add AIRTEL CAP on first start
-    MAX_CONTENT_LENGTH = 2 * 1024 * 1024  # uploads: payload files, config bundles
+    MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "300"))          # the Android app (APK) upload
+    MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
+    SMALL_UPLOAD_LIMIT = 2 * 1024 * 1024  # every other upload (payload files, config bundles) stays at 2 MB
+    TZ_OFFSET_HOURS = int(os.getenv("TZ_OFFSET_HOURS", "3"))  # for "today" and the daily chart (3 = East Africa Time)
     # Optional: first admin is created automatically on startup when both are set.
     ADMIN_EMAIL = os.getenv("ADMIN_EMAIL", "")
     ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")

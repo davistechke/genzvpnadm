@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 
 from flask_sqlalchemy import SQLAlchemy
@@ -89,3 +90,45 @@ def set_setting(key, value):
 def bump_rev():
     """Every admin change calls this so apps can tell the config changed."""
     set_setting("rev", str(int(get_setting("rev", "0") or 0) + 1))
+
+
+# ---------------------------------------------------------------- the Android app download
+CHUNK = 2 * 1024 * 1024   # an APK is stored in the database in pieces of exactly this size (so it survives redeploys)
+
+
+def slugify(text):
+    return re.sub(r"[^a-z0-9.]+", "-", (text or "").lower()).strip("-") or "app"
+
+
+class ApkRelease(db.Model):
+    """One uploaded version of the Android app."""
+    __tablename__ = "apk_releases"
+    id = db.Column(db.Integer, primary_key=True)
+    app_name = db.Column(db.String(60), nullable=False, default="GenzVPN")
+    version = db.Column(db.String(30), nullable=False)
+    notes = db.Column(db.Text, default="")
+    size = db.Column(db.BigInteger, default=0)
+    sha256 = db.Column(db.String(64), default="")
+    downloads = db.Column(db.Integer, default=0, nullable=False)
+    is_published = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+    @property
+    def filename(self):
+        return f"{slugify(self.app_name)}-{slugify(self.version)}.apk"
+
+
+class ApkChunk(db.Model):
+    __tablename__ = "apk_chunks"
+    release_id = db.Column(db.Integer, db.ForeignKey("apk_releases.id"), primary_key=True)
+    idx = db.Column(db.Integer, primary_key=True)
+    data = db.Column(db.LargeBinary, nullable=False)
+
+
+class ApkDownload(db.Model):
+    """One download. The visitor is a salted hash of address and browser, never the address itself."""
+    __tablename__ = "apk_downloads"
+    id = db.Column(db.Integer, primary_key=True)
+    release_id = db.Column(db.Integer, db.ForeignKey("apk_releases.id"), nullable=False, index=True)
+    visitor = db.Column(db.String(16), nullable=False, index=True)
+    created_at = db.Column(db.DateTime, default=utcnow, index=True)

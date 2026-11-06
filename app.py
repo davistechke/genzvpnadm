@@ -20,9 +20,25 @@ def create_app(overrides=None):
     for m in (web, admin, api):
         app.register_blueprint(m.bp)
 
+    @app.before_request
+    def limit_small_uploads():
+        """Only the APK upload may be large; everything else stays at 2 MB."""
+        from flask import abort, request
+        if (request.content_length or 0) > app.config["SMALL_UPLOAD_LIMIT"] and \
+                request.endpoint not in ("admin.apk_upload", "admin.apk_edit"):
+            abort(413, "That file is too large.")
+
     @app.context_processor
     def inject():
         return {"csrf_token": csrf_token}
+
+    @app.template_filter("filesize")
+    def filesize(n):
+        n = float(n or 0)
+        for unit in ("B", "KB", "MB", "GB"):
+            if n < 1024 or unit == "GB":
+                return f"{n:.0f} {unit}" if unit in ("B", "KB") else f"{n:.1f} {unit}"
+            n /= 1024
 
     @app.template_filter("flag")
     def flag(code):

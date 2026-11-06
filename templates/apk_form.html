@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Edit app · GenzVPN{% endblock %}
+{% block content %}
+<h1>Edit {{ r.app_name }} v{{ r.version }}</h1>
+<form method="post" enctype="multipart/form-data" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <div><label for="app_name">App name</label><input id="app_name" name="app_name" value="{{ r.app_name }}" required></div>
+    <div><label for="version">Version</label><input id="version" name="version" value="{{ r.version }}" required></div>
+  </div>
+  <div><label for="apk">Replace the APK (optional)</label><input id="apk" name="apk" type="file" accept=".apk,application/vnd.android.package-archive">
+    <p class="hint">Current file: {{ r.size | filesize }}. Leave empty to keep it.</p></div>
+  <div><label for="notes">What is new</label><textarea id="notes" name="notes" rows="4">{{ r.notes }}</textarea></div>
+  <div class="checks"><label><input type="checkbox" name="is_published" value="1" {{ 'checked' if r.is_published }}> Show on the home page</label></div>
+  <p><button class="btn">Save</button> <a class="btn ghost" href="{{ url_for('admin.home', tab='app') }}">Cancel</a></p>
+</form>
+{% endblock %}

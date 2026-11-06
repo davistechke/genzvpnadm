@@ -84,3 +84,16 @@ textarea{width:100%;max-width:720px;min-height:110px;padding:.7em .8em;border:1.
 .checks input{width:auto}
 .proto{font-family:var(--display);font-size:.72rem;font-weight:500;border-radius:6px;padding:.15em .55em;background:#ece8ff;color:var(--violet-d);text-transform:uppercase}
 .stack>*+*{margin-top:12px}
+
+/* the Android app download */
+.apk-line{margin-top:14px}
+.apk-card{max-width:1040px;margin:8px auto 28px;padding:22px;background:var(--card);border:1.5px solid var(--line);border-radius:16px}
+.apk-card h2{margin:0}.apk-card h3{margin:20px 0 6px}
+.apk-head{display:flex;gap:16px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.apk-notes{white-space:pre-wrap;margin:14px 0 6px}
+.apk-older{margin-top:14px}.apk-older summary{cursor:pointer;color:var(--muted)}
+.apk-older ul{list-style:none;margin:8px 0 0;padding:0}.apk-older li{display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid var(--line)}
+.apk-steps{margin:6px 0 0;padding-left:20px}.apk-steps li{margin:6px 0}
+.chart{width:100%;max-width:560px;height:auto;display:block}
+.bar{fill:var(--violet)}
+.axis{fill:var(--muted);font-size:8px}

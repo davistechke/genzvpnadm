@@ -4,9 +4,10 @@ from datetime import datetime
 
 from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for)
 
-from models import Admin, Notice, Tweak, bump_rev, db, get_setting, set_setting
+from models import Admin, ApkRelease, Notice, Tweak, bump_rev, db, get_setting, set_setting, slugify
 from routes.common import (admin_required, check_csrf, clear_failures, current_admin, record_failure,
                            throttled)
+from services import apk as apk_service
 from services import links
 from services.bundle import FORMAT, build_bundle, import_bundle
 from services.lock import is_locked, lock, unlock
@@ -75,6 +76,12 @@ def home():
     ctx["notices"] = Notice.query.order_by(Notice.id.desc()).limit(50).all()
     ctx["rev"] = get_setting("rev", "0")
     ctx["locked"] = bool(current_app.config["CONFIG_KEY"])
+    if tab == "app":
+        ctx["releases"] = ApkRelease.query.order_by(ApkRelease.created_at.desc(), ApkRelease.id.desc()).all()
+        ctx["st"] = apk_service.stats()
+        ctx["apps"] = sorted({r.app_name for r in ctx["releases"]})
+        ctx["slugify"] = slugify
+        ctx["max_mb"] = current_app.config["MAX_UPLOAD_MB"]
     return render_template("admin.html", **ctx)
 
 
@@ -371,3 +378,86 @@ def notice_delete(nid):
         bump_rev()
         db.session.commit()
     return redirect(url_for("admin.home", tab="notices"))
+
+
+# ------------------------------------------------------------------ the Android app (APK)
+
+def _apk_apply(r, f, files, new):
+    """Fill a release from the form and store its file. Returns an error message or None."""
+    name, version = f.get("app_name", "").strip()[:60], f.get("version", "").strip()[:30]
+    if not name or not version:
+        return "Give the app name and the version."
+    upload = files.get("apk")
+    has_file = bool(upload and upload.filename)
+    if new and not has_file:
+        return "Choose the APK file to upload."
+    r.app_name, r.version = name, version
+    r.notes = f.get("notes", "").strip()[:4000]
+    r.is_published = bool(f.get("is_published"))
+    if has_file:
+        if not upload.filename.lower().endswith(".apk"):
+            return "The file must end in .apk"
+        try:
+            apk_service.check_apk(upload.stream)
+        except apk_service.ApkError as e:
+            return str(e)
+        if new:
+            db.session.add(r)
+            db.session.flush()  # the file pieces need the release id
+        apk_service.store(r, upload.stream)
+    return None
+
+
+@bp.post("/app/upload")
+@admin_required
+def apk_upload():
+    r = ApkRelease()
+    err = _apk_apply(r, request.form, request.files, new=True)
+    if err:
+        db.session.rollback()
+        flash(err, "error")
+    else:
+        db.session.commit()
+        flash(f"Uploaded {r.app_name} {r.version}. " + ("The home page now shows the download button." if r.is_published
+              else "It is hidden until you publish it."), "ok")
+    return redirect(url_for("admin.home", tab="app"))
+
+
+@bp.route("/app/<int:rid>", methods=["GET", "POST"])
+@admin_required
+def apk_edit(rid):
+    r = db.session.get(ApkRelease, rid)
+    if r is None:
+        return redirect(url_for("admin.home", tab="app"))
+    if request.method == "POST":
+        err = _apk_apply(r, request.form, request.files, new=False)
+        if err:
+            db.session.rollback()
+            flash(err, "error")
+        else:
+            db.session.commit()
+            flash("Saved.", "ok")
+            return redirect(url_for("admin.home", tab="app"))
+    return render_template("apk_form.html", r=r)
+
+
+@bp.post("/app/<int:rid>/toggle")
+@admin_required
+def apk_toggle(rid):
+    r = db.session.get(ApkRelease, rid)
+    if r:
+        r.is_published = not r.is_published
+        db.session.commit()
+    return redirect(url_for("admin.home", tab="app"))
+
+
+@bp.post("/app/<int:rid>/delete")
+@admin_required
+def apk_delete(rid):
+    r = db.session.get(ApkRelease, rid)
+    if r:
+        apk_service.remove(r)
+        db.session.delete(r)
+        db.session.commit()
+        flash("Deleted.", "ok")
+    return redirect(url_for("admin.home", tab="app"))
