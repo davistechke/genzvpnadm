@@ -132,3 +132,17 @@ class ApkDownload(db.Model):
     release_id = db.Column(db.Integer, db.ForeignKey("apk_releases.id"), nullable=False, index=True)
     visitor = db.Column(db.String(16), nullable=False, index=True)
     created_at = db.Column(db.DateTime, default=utcnow, index=True)
+
+
+class Presence(db.Model):
+    """Who is connected right now. The app reports every 30 seconds while the VPN is on and once when it turns off.
+    Rows are removed on disconnect and anything silent for an hour is purged, so nothing builds up as history."""
+    __tablename__ = "presence"
+    device = db.Column(db.String(64), primary_key=True)      # random id made by the app on first run, not a hardware id
+    tweak_id = db.Column(db.Integer)
+    tweak_name = db.Column(db.String(80), default="")
+    ip = db.Column(db.String(64), default="")                # the phone's address, as the server sees it
+    exit_ip = db.Column(db.String(64), default="")           # the address websites see through the VPN, as the app reports it
+    app_version = db.Column(db.String(20), default="")
+    connected_at = db.Column(db.DateTime, default=utcnow)
+    last_seen = db.Column(db.DateTime, default=utcnow, index=True)

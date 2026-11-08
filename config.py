@@ -23,6 +23,9 @@ class Config:
     # app's CONFIG_KEY. Empty = configs are served as plain JSON.
     CONFIG_KEY = os.getenv("CONFIG_KEY", "")
     SEED_DEFAULT_TWEAK = os.getenv("SEED_DEFAULT_TWEAK", "1") == "1"  # add AIRTEL CAP on first start
+    PROXY_HOPS = int(os.getenv("PROXY_HOPS", "1"))   # proxies in front of the app (Render = 1) so we see the visitor's real address
+    ONLINE_SECONDS = 90      # a phone counts as online if it reported within this many seconds
+    PRESENCE_KEEP_SECONDS = 3600
     MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "300"))          # the Android app (APK) upload
     MAX_CONTENT_LENGTH = MAX_UPLOAD_MB * 1024 * 1024
     SMALL_UPLOAD_LIMIT = 2 * 1024 * 1024  # every other upload (payload files, config bundles) stays at 2 MB

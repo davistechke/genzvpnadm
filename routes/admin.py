@@ -1,10 +1,11 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for)
 
-from models import Admin, ApkRelease, Notice, Tweak, bump_rev, db, get_setting, set_setting, slugify
+from models import (Admin, ApkRelease, Notice, Presence, Tweak, bump_rev, db, get_setting, set_setting, slugify,
+                    utcnow)
 from routes.common import (admin_required, check_csrf, clear_failures, current_admin, record_failure,
                            throttled)
 from services import apk as apk_service
@@ -66,6 +67,15 @@ def change_password():
 # ------------------------------------------------------------------ pages
 
 @bp.get("")
+def _ago(delta):
+    s = max(int(delta.total_seconds()), 0)
+    if s < 60:
+        return f"{s}s"
+    if s < 3600:
+        return f"{s // 60}m {s % 60:02d}s"
+    return f"{s // 3600}h {(s % 3600) // 60:02d}m"
+
+
 @bp.get("/")
 @admin_required
 def home():
@@ -76,6 +86,21 @@ def home():
     ctx["notices"] = Notice.query.order_by(Notice.id.desc()).limit(50).all()
     ctx["rev"] = get_setting("rev", "0")
     ctx["locked"] = bool(current_app.config["CONFIG_KEY"])
+    cutoff = utcnow() - timedelta(seconds=current_app.config["ONLINE_SECONDS"])
+    ctx["online_count"] = Presence.query.filter(Presence.last_seen >= cutoff).count()
+    if tab == "online":
+        now = utcnow()
+        rows = Presence.query.filter(Presence.last_seen >= cutoff).order_by(Presence.connected_at).all()
+        names = {t.id: t.name for t in Tweak.query.all()}
+        ctx["online"] = [{
+            "tweak": names.get(r.tweak_id) or r.tweak_name or "unknown", "ip": r.ip, "exit_ip": r.exit_ip,
+            "version": r.app_version, "for": _ago(now - r.connected_at), "seen": int((now - r.last_seen).total_seconds()),
+            "device": r.device[:6],
+        } for r in rows]
+        per = {}
+        for o in ctx["online"]:
+            per[o["tweak"]] = per.get(o["tweak"], 0) + 1
+        ctx["per_tweak"] = sorted(per.items(), key=lambda kv: -kv[1])
     if tab == "app":
         ctx["releases"] = ApkRelease.query.order_by(ApkRelease.created_at.desc(), ApkRelease.id.desc()).all()
         ctx["st"] = apk_service.stats()

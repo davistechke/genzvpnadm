@@ -130,3 +130,56 @@ def test_apk_admin_needs_login_and_other_uploads_stay_small(app, admin):
     big = admin.post("/admin/import-bundle", data={"csrf": csrf(admin, "/admin/?tab=backup"),
                      "bundle": (io.BytesIO(b"x" * (3 * 1024 * 1024)), "b.json")}, content_type="multipart/form-data")
     assert big.status_code == 413
+
+
+# ---------------------------------------------------------------- who is online
+def beat(app, device="a1b2c3d4e5f60718", ip="41.80.1.2", **body):
+    data = {"device": device, "state": "on", "tweak": None, "exit_ip": "", "app": "2.0", **body}
+    return app.test_client().post("/api/v1/presence", json=data, headers={"X-Forwarded-For": ip})
+
+
+def test_admin_sees_who_is_online_and_on_which_tweak(app, admin):
+    from models import Presence, Tweak
+    with app.app_context():
+        t = Tweak(name="AIRTEL CAP", protocol="ssh", host="h", port=22)
+        db.session.add(t)
+        db.session.commit()
+        tid = t.id
+    assert beat(app, tweak=tid, exit_ip="95.1.2.3").status_code == 204
+    assert beat(app, device="ffffffffffffffff", ip="105.9.9.9", tweak=tid).status_code == 204
+    assert beat(app, tweak=tid, exit_ip="95.1.2.3").status_code == 204        # same phone again: still one
+    page = admin.get("/admin/?tab=online").get_data(as_text=True)
+    assert "Online (2)" in page and "AIRTEL CAP" in page
+    assert "41.80.1.2" in page and "105.9.9.9" in page and "95.1.2.3" in page
+    assert re.search(r"<b>2</b><span class=\"muted\">online now", page) and 'http-equiv="refresh"' in page
+    assert beat(app, state="off").status_code == 204                          # disconnecting removes the phone at once
+    assert "Online (1)" in admin.get("/admin/?tab=online").get_data(as_text=True)
+
+
+def test_presence_rejects_bad_input_and_expires(app, admin):
+    from datetime import timedelta
+    from models import Presence, utcnow
+    assert beat(app, device="not valid!").status_code == 400
+    beat(app, exit_ip="<script>alert(1)</script>")
+    with app.app_context():
+        assert Presence.query.one().exit_ip == ""                              # only real addresses are kept
+    with app.app_context():
+        Presence.query.one().last_seen = utcnow() - timedelta(seconds=200)
+        db.session.commit()
+    assert "Online (0)" in admin.get("/admin/?tab=online").get_data(as_text=True)   # silent for too long: not online
+    with app.app_context():
+        Presence.query.one().last_seen = utcnow() - timedelta(hours=2)
+        db.session.commit()
+    beat(app, device="0000000000000001")
+    with app.app_context():
+        assert [p.device for p in Presence.query] == ["0000000000000001"]     # an hour of silence is purged
+
+
+def test_presence_is_rate_limited_per_address(app):
+    codes = [beat(app, ip="8.8.4.4").status_code for _ in range(45)]
+    assert codes[:40] == [204] * 40 and 429 in codes[40:]
+    assert beat(app, ip="8.8.8.8").status_code == 204
+
+
+def test_online_tab_needs_login(app):
+    assert app.test_client().get("/admin/?tab=online").status_code == 302

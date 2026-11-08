@@ -13,6 +13,9 @@ def create_app(overrides=None):
     if overrides:
         app.config.update(overrides)
     logging.basicConfig(level=logging.INFO)
+    if app.config["PROXY_HOPS"]:
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=app.config["PROXY_HOPS"], x_proto=app.config["PROXY_HOPS"])
     db.init_app(app)
 
     from routes import admin, api, web
