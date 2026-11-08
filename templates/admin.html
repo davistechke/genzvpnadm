@@ -53,7 +53,7 @@
   {% endfor %}
 </table></div>
 {% else %}<p class="muted">Nobody is connected right now.</p>{% endif %}
-<p class="hint">This page refreshes every 15 seconds. A phone counts as online while its app has reported in the last {{ 90 }} seconds, which it does every 30 seconds while the VPN is on. "Phone IP" is the address the phone connects to this site from. "VPN IP" is the address websites see through the tunnel, as the app reports it. Records are removed when the user disconnects or after an hour of silence, and nothing about what people browse is collected.</p>
+<p class="hint">This page refreshes every 15 seconds. A phone counts as online while its app has reported in the last {{ 90 }} seconds, which it does every 30 seconds while the VPN is on. "Phone IP" is the phone's own address as its app reports it: its public address from before it connected, or its address on the carrier network when it had no internet. "VPN IP" is the address websites see through the tunnel. Records are removed when the user disconnects or after an hour of silence, and nothing about what people browse is collected.</p>
 
 {% elif tab == 'app' %}
 <div class="stats">

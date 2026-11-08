@@ -175,10 +175,15 @@ def test_presence_rejects_bad_input_and_expires(app, admin):
         assert [p.device for p in Presence.query] == ["0000000000000001"]     # an hour of silence is purged
 
 
-def test_presence_is_rate_limited_per_address(app):
-    codes = [beat(app, ip="8.8.4.4").status_code for _ in range(45)]
-    assert codes[:40] == [204] * 40 and 429 in codes[40:]
-    assert beat(app, ip="8.8.8.8").status_code == 204
+def test_presence_uses_the_reported_phone_address_and_limits_per_phone(app, admin):
+    # many phones reach the server through the same VPN address; each phone is limited on its own
+    codes = [beat(app, device="bbbbbbbbbbbbbbbb", ip="95.1.2.3").status_code for _ in range(14)]
+    assert codes[:12] == [204] * 12 and 429 in codes[12:]
+    assert beat(app, device="cccccccccccccccc", ip="95.1.2.3", phone_ip="10.0.144.164").status_code == 204
+    page = admin.get("/admin/?tab=online").get_data(as_text=True)
+    assert "10.0.144.164" in page                       # shown instead of the shared VPN address
+    assert beat(app, device="dddddddddddddddd", ip="95.1.2.3", phone_ip="not-an-ip").status_code == 204
+    assert "95.1.2.3" in admin.get("/admin/?tab=online").get_data(as_text=True)   # falls back to what the server saw
 
 
 def test_online_tab_needs_login(app):

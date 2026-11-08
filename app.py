@@ -1,3 +1,4 @@
+import time
 import logging
 
 import click
@@ -66,7 +67,7 @@ def create_app(overrides=None):
     def oops(e):
         return render_template("error.html", code=e.code, message=getattr(e, "description", "")), e.code
 
-    with app.app_context():
+    def first_start():
         db.create_all()
         email, pw = app.config["ADMIN_EMAIL"].strip().lower(), app.config["ADMIN_PASSWORD"]
         if email and pw and not Admin.query.filter_by(email=email).first():
@@ -77,6 +78,20 @@ def create_app(overrides=None):
         if app.config["SEED_DEFAULT_TWEAK"]:
             from services.defaults import seed_default_tweak
             seed_default_tweak()
+
+    with app.app_context():
+        # Several server workers boot at the same moment on a fresh database and would each create the tables and the
+        # first admin. The loser of that race gets a "already exists" error; it must wait and carry on, not crash.
+        from sqlalchemy.exc import DBAPIError
+        for attempt in range(6):
+            try:
+                first_start()
+                break
+            except DBAPIError:
+                db.session.rollback()
+                if attempt == 5:
+                    raise
+                time.sleep(0.4 * (attempt + 1))
 
     @app.cli.command("create-admin")
     @click.argument("email")

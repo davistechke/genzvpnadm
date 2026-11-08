@@ -43,16 +43,18 @@ def presence():
     It tells the panel that this phone is online, on which tweak, and the address websites see. Nothing about
     what the user does online is sent."""
     ip = request.remote_addr or ""
-    key = f"presence:{ip}"
-    if throttled(key, limit=40, window=60):
-        current_app.logger.warning("presence: too many reports from %s", ip)
-        return Response(status=429)
-    record_failure(key)  # counts every call from this address, not only failures
     data = request.get_json(silent=True) or {}
     device = str(data.get("device", ""))
     if not re.fullmatch(r"[0-9a-f-]{16,64}", device):
         current_app.logger.warning("presence: rejected a report with a bad device id from %s", ip)
         return Response(status=400)
+    # Reports arrive through the VPN, so many phones share one address (the VPN server's). Limit per phone, with a
+    # generous limit per address on top to stop flooding.
+    for key, limit in ((f"presence:dev:{device}", 12), (f"presence:ip:{ip}", 600)):
+        if throttled(key, limit=limit, window=60):
+            current_app.logger.warning("presence: too many reports from %s (%s)", device[:6], ip)
+            return Response(status=429)
+        record_failure(key)  # counts every call, not only failures
     now = utcnow()
     Presence.query.filter(Presence.last_seen < now - timedelta(seconds=current_app.config["PRESENCE_KEEP_SECONDS"])).delete()
     if data.get("state") == "off":
@@ -73,7 +75,9 @@ def presence():
     if fresh:
         row.connected_at = now
     row.tweak_id, row.tweak_name = tweak_id, (tweak.name if tweak else "")[:80]
-    row.ip, row.exit_ip = ip[:64], _ip_or_blank(data.get("exit_ip", ""))
+    # The phone's own address as the app reports it (its public address from before connecting, or its carrier-network
+    # address). The request itself comes through the VPN, so the address the server sees is the VPN's, not the phone's.
+    row.ip, row.exit_ip = (_ip_or_blank(data.get("phone_ip", "")) or ip)[:64], _ip_or_blank(data.get("exit_ip", ""))
     row.app_version, row.last_seen = str(data.get("app", ""))[:20], now
     db.session.commit()
     return Response(status=204)
