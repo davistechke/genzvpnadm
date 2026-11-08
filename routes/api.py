@@ -45,11 +45,13 @@ def presence():
     ip = request.remote_addr or ""
     key = f"presence:{ip}"
     if throttled(key, limit=40, window=60):
+        current_app.logger.warning("presence: too many reports from %s", ip)
         return Response(status=429)
     record_failure(key)  # counts every call from this address, not only failures
     data = request.get_json(silent=True) or {}
     device = str(data.get("device", ""))
     if not re.fullmatch(r"[0-9a-f-]{16,64}", device):
+        current_app.logger.warning("presence: rejected a report with a bad device id from %s", ip)
         return Response(status=400)
     now = utcnow()
     Presence.query.filter(Presence.last_seen < now - timedelta(seconds=current_app.config["PRESENCE_KEEP_SECONDS"])).delete()
