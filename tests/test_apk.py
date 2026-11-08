@@ -183,3 +183,11 @@ def test_presence_is_rate_limited_per_address(app):
 
 def test_online_tab_needs_login(app):
     assert app.test_client().get("/admin/?tab=online").status_code == 302
+
+
+def test_admin_address_without_slash_works(app, admin):
+    anon = app.test_client()
+    r = anon.get("/admin")
+    assert r.status_code in (301, 302, 308) or r.status_code == 200      # must never be a server error
+    assert anon.get("/admin", follow_redirects=True).status_code == 200  # ends on the sign-in page
+    assert admin.get("/admin", follow_redirects=True).status_code == 200  # signed in: ends on the panel

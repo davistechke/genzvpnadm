@@ -66,7 +66,6 @@ def change_password():
 
 # ------------------------------------------------------------------ pages
 
-@bp.get("")
 def _ago(delta):
     s = max(int(delta.total_seconds()), 0)
     if s < 60:
@@ -76,6 +75,7 @@ def _ago(delta):
     return f"{s // 3600}h {(s % 3600) // 60:02d}m"
 
 
+@bp.get("")
 @bp.get("/")
 @admin_required
 def home():
