@@ -80,12 +80,28 @@ def test_v2ray_server_account_transport(tmp_path):
     assert "UUID" in post_tweak(c, {"name": "x", "protocol": "v2ray", "host": "h", "port": "443"}).get_data(as_text=True)
 
 
-def test_udp_server_and_account(tmp_path):
+def test_udp_server_account_and_port_ranges(tmp_path):
     app, c = admin_client(tmp_path)
-    r = post_tweak(c, {"name": "UDP 1", "protocol": "udp", "host": "udp.example.com:4443", "port": "443",
-                       "udp_username": "bob", "udp_password": "pw", "udp_insecure": "1"})
-    assert r.status_code == 302
-    o = app.test_client().get("/api/v1/config").get_json()["tweaks"][0]["outbound"]
-    assert o["protocol"] == "hysteria" and o["settings"]["address"] == "udp.example.com" and o["settings"]["port"] == 4443
-    assert o["streamSettings"]["hysteriaSettings"]["auth"] == "bob:pw"
-    assert "password" in post_tweak(c, {"name": "u", "protocol": "udp", "host": "h", "port": "1"}).get_data(as_text=True)
+
+    def make(name, server, **extra):
+        return post_tweak(c, {"name": name, "protocol": "udp", "udp_server": server, "udp_username": "bob",
+                              "udp_password": "pw", "udp_insecure": "1", **extra})
+
+    assert make("single", "udp.example.com:4443").status_code == 302
+    assert make("range", "udp.example.com:20000-50000").status_code == 302
+    assert make("underscore", "udp.example.com:1_65535").status_code == 302
+    assert make("v6", "[2001:db8::1]:443").status_code == 302
+    by = {t["name"]: t["outbound"] for t in app.test_client().get("/api/v1/config").get_json()["tweaks"]}
+    one = by["single"]
+    assert one["protocol"] == "hysteria" and one["settings"]["address"] == "udp.example.com" and one["settings"]["port"] == 4443
+    assert one["streamSettings"]["hysteriaSettings"]["auth"] == "bob:pw"
+    assert "udphop" not in one["streamSettings"]["hysteriaSettings"]
+    hop = by["range"]["streamSettings"]["hysteriaSettings"]["udphop"]
+    assert by["range"]["settings"]["port"] == 20000 and hop["port"] == "20000-50000"
+    assert by["underscore"]["streamSettings"]["hysteriaSettings"]["udphop"]["port"] == "1-65535"
+    assert by["v6"]["settings"]["address"] == "2001:db8::1"
+    assert 'value="udp.example.com:20000-50000"' in c.get("/admin/tweaks/2").get_data(as_text=True)   # shown back as typed
+    for bad, word in (("udp.example.com", "Add the port"), ("udp.example.com:99999", "1 to 65535"),
+                      ("udp.example.com:500-100", "smaller number"), ("udp.example.com:abc", "not a port")):
+        assert word in make("bad", bad).get_data(as_text=True)
+    assert "password" in post_tweak(c, {"name": "u", "protocol": "udp", "udp_server": "h:1"}).get_data(as_text=True)

@@ -127,6 +127,7 @@ def _tweak_values(s):
         "v2_network": cfg.get("form", {}).get("network", "ws"), "v2_path": cfg.get("form", {}).get("path", ""),
         "v2_hosthdr": cfg.get("form", {}).get("host_header", ""), "v2_sni": cfg.get("form", {}).get("sni", ""),
         "v2_tls": cfg.get("form", {}).get("tls", True),
+        "udp_server": _udp_server(s),
         "udp_username": cfg.get("form", {}).get("username", ""), "udp_password": cfg.get("form", {}).get("password", ""),
         "udp_sni": cfg.get("form", {}).get("sni", ""), "udp_insecure": cfg.get("form", {}).get("insecure", True),
         "wg_conf": cfg.get("wg_conf", ""),
@@ -145,6 +146,14 @@ def _parse_proxy(text):
     if not port.isdigit() or not 0 < int(port) < 65536:
         raise links.LinkError("Remote proxy must look like host:port, e.g. proxy.example.com:8080")
     return host, int(port)
+
+
+def _udp_server(t):
+    """How a saved UDP tweak's server is shown back in the form: host:port or host:from-to."""
+    if not t or t.protocol != "udp" or not t.host:
+        return ""
+    host = f"[{t.host}]" if ":" in t.host else t.host
+    return f"{host}:{t.cfg.get('form', {}).get('port_spec') or t.port}"
 
 
 def _split_host_port(host, port):
@@ -213,10 +222,12 @@ def _fill_tweak(s, f, files=None):
         else:
             raise links.LinkError("V2Ray needs the server host, port and UUID (or paste a share link)")
     elif proto == "udp":
-        host, port = _split_host_port(host, port)
+        server_host, server_ports = links.split_server(f.get("udp_server", ""))
+        first_port, port_spec = links.parse_ports(server_ports)
+        host, port = server_host, first_port
         form = {"username": f.get("udp_username", "").strip(), "password": f.get("udp_password", ""),
-                "sni": f.get("udp_sni", "").strip(), "insecure": bool(f.get("udp_insecure"))}
-        cfg = {"outbound": links.build_udp(host, port, form["username"], form["password"], form["sni"], form["insecure"]),
+                "sni": f.get("udp_sni", "").strip(), "insecure": bool(f.get("udp_insecure")), "port_spec": port_spec}
+        cfg = {"outbound": links.build_udp(host, port_spec, form["username"], form["password"], form["sni"], form["insecure"]),
                "form": form}
     elif proto == "wireguard":
         conf = f.get("wg_conf", "").strip()

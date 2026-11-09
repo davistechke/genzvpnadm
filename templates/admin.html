@@ -20,7 +20,7 @@
   <tr>
     <td><a href="{{ url_for('admin.tweak_form', sid=t.id) }}">{{ t.country_code | flag }} {{ t.name }}</a><br><span class="hint">{{ t.description }}</span></td>
     <td><span class="proto">{{ t.protocol }}</span></td>
-    <td>{{ t.host }}{% if t.port %}:{{ t.port }}{% endif %}</td>
+    <td>{{ t.host }}{% if t.port %}:{{ t.cfg.get('form', {}).get('port_spec') or t.port }}{% endif %}</td>
     <td>{{ t.expires_at.strftime('%d %b %Y') if t.expires_at else '–' }}</td>
     <td><span class="badge {{ 'on' if t.is_active else 'off' }}">{{ 'live' if t.is_active else 'hidden' }}</span></td>
     <td>

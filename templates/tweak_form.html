@@ -78,10 +78,9 @@
 
   <div data-group="udp">
     <h3 style="margin-top:22px">Server</h3>
-    <div class="grid2">
-      <div><label>Server host</label><input name="host" value="{{ v.host }}" placeholder="udp.example.com"></div>
-      <div><label>Port</label><input name="port" type="number" value="{{ v.port or 443 }}" placeholder="443"></div>
-    </div>
+    <label>Server (host:port)</label>
+    <input name="udp_server" value="{{ v.udp_server }}" placeholder="udp.example.com:443  or  udp.example.com:1-65535" style="max-width:520px">
+    <p class="hint">Paste host and port together. The port can be a range with a dash, like <span class="code">20000-50000</span> or <span class="code">1-65535</span>, or a list like <span class="code">1000-2000,3000</span>. A range makes the app hop between those ports.</p>
     <h3 style="margin-top:22px">Account</h3>
     <div class="grid2">
       <div><label>Username</label><input name="udp_username" value="{{ v.udp_username }}" autocomplete="off"></div>

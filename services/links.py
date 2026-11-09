@@ -74,17 +74,58 @@ def build_v2ray(proto, host, port, uuid, network="ws", path="", host_header="", 
                                       sni=sni or host_header or host)}
 
 
-def build_udp(host, port, username, password, sni="", insecure=True):
-    """Server (host, port) + account (username, password) -> a Hysteria 2 outbound (QUIC over UDP).
-    The login is sent as 'username:password', Hysteria 2's user/password format."""
-    if not host or not port or not password:
-        raise LinkError("UDP needs the server host, port and password")
+def parse_ports(spec):
+    """A UDP server port can be one port ('443'), a range ('20000-50000') or a list ('1000-2000,3000').
+    A dash or an underscore both mean "to". Returns (first port, tidy spec) or raises LinkError."""
+    text = str(spec or "").replace(" ", "").replace("_", "-")
+    if not text:
+        raise LinkError("Add the port after the host, like udp.example.com:443 or udp.example.com:20000-50000")
+    first, parts = None, []
+    for part in text.split(","):
+        m = re.fullmatch(r"(\d{1,5})(?:-(\d{1,5}))?", part)
+        if not m:
+            raise LinkError(f"'{part}' is not a port or a port range")
+        lo = int(m.group(1))
+        hi = int(m.group(2)) if m.group(2) else lo
+        if not (1 <= lo <= 65535 and 1 <= hi <= 65535 and lo <= hi):
+            raise LinkError("Ports go from 1 to 65535, and a range must run from the smaller number to the larger")
+        first = lo if first is None else first
+        parts.append(str(lo) if lo == hi else f"{lo}-{hi}")
+    return first, ",".join(parts)
+
+
+def split_server(text):
+    """'host:port' (or '[ipv6]:port'), where the port may be a range, -> (host, port spec). Raises LinkError."""
+    t = re.sub(r"^[a-z]+://", "", (text or "").strip(), flags=re.I).rstrip("/")
+    if not t:
+        raise LinkError("Paste the server as host:port")
+    if t.startswith("["):
+        host, _, rest = t[1:].partition("]")
+        spec = rest[1:] if rest.startswith(":") else ""
+    elif ":" in t:
+        host, _, spec = t.rpartition(":")
+    else:
+        host, spec = t, ""
+    if not host:
+        raise LinkError("Paste the server as host:port")
+    return host, spec
+
+
+def build_udp(host, port_spec, username, password, sni="", insecure=True):
+    """Server (host, port or port range) + account (username, password) -> a Hysteria 2 outbound (QUIC over UDP).
+    The login is sent as 'username:password', Hysteria 2's user/password format. A range turns on port hopping."""
+    if not host or not password:
+        raise LinkError("UDP needs the server (host:port) and the password")
+    first, spec = parse_ports(port_spec)
     auth = f"{username}:{password}" if username else password
+    hysteria = {"version": 2, "auth": auth}
+    if "-" in spec or "," in spec:
+        hysteria["udphop"] = {"port": spec, "interval": 30}   # hop between these ports, as UDP Custom style servers expect
     return {"protocol": "hysteria", "tag": "proxy",
-            "settings": {"version": 2, "address": host, "port": port},
+            "settings": {"version": 2, "address": host, "port": first},
             "streamSettings": {"network": "hysteria", "security": "tls",
                                "tlsSettings": {"serverName": sni or host, "alpn": ["h3"], "allowInsecure": bool(insecure)},
-                               "hysteriaSettings": {"version": 2, "auth": auth}}}
+                               "hysteriaSettings": hysteria}}
 
 
 def parse_link(link):
