@@ -86,8 +86,11 @@
       <div><label>Username</label><input name="udp_username" value="{{ v.udp_username }}" autocomplete="off"></div>
       <div><label>Password</label><input name="udp_password" value="{{ v.udp_password }}" autocomplete="off"></div>
       <div><label>SNI (optional)</label><input name="udp_sni" value="{{ v.udp_sni }}" placeholder="same as the host if empty"></div>
+      <div><label>Certificate name (optional)</label><input name="udp_certname" value="{{ v.udp_certname }}" placeholder="only if it differs from the SNI"></div>
     </div>
-    <p><label style="display:flex;gap:8px;align-items:center;font-weight:400"><input type="checkbox" name="udp_insecure" value="1" {{ 'checked' if v.udp_insecure }} style="width:auto"> Accept a self-signed certificate</label></p>
+    <label>Server certificate fingerprint (SHA-256)</label>
+    <input name="udp_pin" value="{{ v.udp_pin }}" placeholder="AB:CD:12:… (64 hex characters)" style="max-width:640px" autocomplete="off">
+    <p class="hint">Leave empty if the server has a normal certificate (for example from Let's Encrypt). If it uses its own self-signed certificate, paste its fingerprint here, from the server with <span class="code">openssl x509 -in server.crt -noout -fingerprint -sha256</span>. The app's engine no longer has an "accept any certificate" switch, so this is how a self-signed server is trusted.</p>
     <p class="hint">This type speaks Hysteria 2 (QUIC over UDP), so the server must run Hysteria 2. Servers for other UDP apps, such as UDP Custom or ZIVPN, use different protocols and will not connect.</p>
   </div>
 

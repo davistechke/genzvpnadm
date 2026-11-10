@@ -3,6 +3,7 @@ import hashlib
 import json
 from datetime import datetime
 
+from services import links
 from models import Notice, Tweak, bump_rev, db, get_setting, set_setting, utcnow
 
 FORMAT = "genzvpn-config"
@@ -27,7 +28,7 @@ def tweak_to_dict(t, full=False):
                     **{k: cfg.get(k, "") for k in ("username", "password", "payload", "sni", "proxy_host")},
                     "proxy_port": int(cfg.get("proxy_port") or 0)}
     else:
-        d.update(host=t.host or "", port=t.port or 0, outbound=cfg.get("outbound", {}))
+        d.update(host=t.host or "", port=t.port or 0, outbound=links.clean_outbound(cfg.get("outbound", {})))
     return d
 
 

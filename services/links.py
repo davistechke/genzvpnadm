@@ -111,21 +111,65 @@ def split_server(text):
     return host, spec
 
 
-def build_udp(host, port_spec, username, password, sni="", insecure=True):
+def _fingerprints(text):
+    """Certificate SHA-256 fingerprints: hex, with or without colons, several separated by commas."""
+    out = []
+    for part in re.split(r"[,\s]+", str(text or "").strip()):
+        if not part:
+            continue
+        hexpart = part.replace(":", "").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", hexpart):
+            raise LinkError("The certificate fingerprint must be a SHA-256: 64 hex characters (colons are fine)")
+        out.append(hexpart)
+    return ",".join(out)
+
+
+def build_udp(host, port_spec, username, password, sni="", pin="", cert_name=""):
     """Server (host, port or port range) + account (username, password) -> a Hysteria 2 outbound (QUIC over UDP).
-    The login is sent as 'username:password', Hysteria 2's user/password format. A range turns on port hopping."""
+    The login is sent as 'username:password', Hysteria 2's user/password format. A range turns on port hopping.
+
+    The 2026 engine no longer has "allowInsecure". A server with a normal (CA signed) certificate needs nothing extra;
+    a server with its own certificate is trusted by pinning that certificate's SHA-256 fingerprint instead."""
     if not host or not password:
         raise LinkError("UDP needs the server (host:port) and the password")
     first, spec = parse_ports(port_spec)
     auth = f"{username}:{password}" if username else password
-    hysteria = {"version": 2, "auth": auth}
-    if "-" in spec or "," in spec:
-        hysteria["udphop"] = {"port": spec, "interval": 30}   # hop between these ports, as UDP Custom style servers expect
-    return {"protocol": "hysteria", "tag": "proxy",
-            "settings": {"version": 2, "address": host, "port": first},
-            "streamSettings": {"network": "hysteria", "security": "tls",
-                               "tlsSettings": {"serverName": sni or host, "alpn": ["h3"], "allowInsecure": bool(insecure)},
-                               "hysteriaSettings": hysteria}}
+    tls = {"serverName": sni or host, "alpn": ["h3"]}
+    fingerprint = _fingerprints(pin)
+    if fingerprint:
+        tls["pinnedPeerCertSha256"] = fingerprint
+    if cert_name:
+        tls["verifyPeerCertByName"] = cert_name
+    stream = {"network": "hysteria", "security": "tls", "tlsSettings": tls,
+              "hysteriaSettings": {"version": 2, "auth": auth}}
+    if "-" in spec or "," in spec:   # port hopping lives in "finalmask" in the current engine
+        stream["finalmask"] = {"quicParams": {"udpHop": {"ports": spec, "interval": 30}}}
+    return {"protocol": "hysteria", "tag": "proxy", "settings": {"version": 2, "address": host, "port": first},
+            "streamSettings": stream}
+
+
+def clean_outbound(outbound):
+    """Make an outbound saved earlier acceptable to the current engine: drop the removed "allowInsecure" and move old
+    Hysteria "udphop" settings to finalmask/quicParams/udpHop. Returns a fixed copy; the stored one is left alone."""
+    import copy
+    o = copy.deepcopy(outbound or {})
+    ss = o.get("streamSettings")
+    if not isinstance(ss, dict):
+        return o
+    for key in ("tlsSettings", "realitySettings"):
+        if isinstance(ss.get(key), dict):
+            ss[key].pop("allowInsecure", None)
+    hs = ss.get("hysteriaSettings")
+    if isinstance(hs, dict):
+        hop = hs.pop("udphop", None)
+        for old in ("congestion", "up", "down"):
+            hs.pop(old, None)
+        if isinstance(hop, dict):
+            ports = hop.get("ports") or hop.get("port")
+            if ports:
+                fm = ss.setdefault("finalmask", {})
+                fm.setdefault("quicParams", {}).setdefault("udpHop", {"ports": str(ports), "interval": hop.get("interval") or 30})
+    return o
 
 
 def parse_link(link):

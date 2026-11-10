@@ -85,7 +85,7 @@ def test_udp_server_account_and_port_ranges(tmp_path):
 
     def make(name, server, **extra):
         return post_tweak(c, {"name": name, "protocol": "udp", "udp_server": server, "udp_username": "bob",
-                              "udp_password": "pw", "udp_insecure": "1", **extra})
+                              "udp_password": "pw", **extra})
 
     assert make("single", "udp.example.com:4443").status_code == 302
     assert make("range", "udp.example.com:20000-50000").status_code == 302
@@ -95,13 +95,45 @@ def test_udp_server_account_and_port_ranges(tmp_path):
     one = by["single"]
     assert one["protocol"] == "hysteria" and one["settings"]["address"] == "udp.example.com" and one["settings"]["port"] == 4443
     assert one["streamSettings"]["hysteriaSettings"]["auth"] == "bob:pw"
-    assert "udphop" not in one["streamSettings"]["hysteriaSettings"]
-    hop = by["range"]["streamSettings"]["hysteriaSettings"]["udphop"]
-    assert by["range"]["settings"]["port"] == 20000 and hop["port"] == "20000-50000"
-    assert by["underscore"]["streamSettings"]["hysteriaSettings"]["udphop"]["port"] == "1-65535"
+    hop = by["range"]["streamSettings"]["finalmask"]["quicParams"]["udpHop"]    # where the current engine wants it
+    assert by["range"]["settings"]["port"] == 20000 and hop["ports"] == "20000-50000" and hop["interval"] >= 5
+    assert "udphop" not in by["range"]["streamSettings"]["hysteriaSettings"]
+    assert by["underscore"]["streamSettings"]["finalmask"]["quicParams"]["udpHop"]["ports"] == "1-65535"
+    assert "finalmask" not in one["streamSettings"]
+    for o in by.values():                                                         # the engine rejects this setting outright
+        assert "allowInsecure" not in o["streamSettings"]["tlsSettings"]
     assert by["v6"]["settings"]["address"] == "2001:db8::1"
     assert 'value="udp.example.com:20000-50000"' in c.get("/admin/tweaks/2").get_data(as_text=True)   # shown back as typed
     for bad, word in (("udp.example.com", "Add the port"), ("udp.example.com:99999", "1 to 65535"),
                       ("udp.example.com:500-100", "smaller number"), ("udp.example.com:abc", "not a port")):
         assert word in make("bad", bad).get_data(as_text=True)
     assert "password" in post_tweak(c, {"name": "u", "protocol": "udp", "udp_server": "h:1"}).get_data(as_text=True)
+
+
+def test_udp_certificate_pinning_and_old_saved_tweaks_are_repaired(tmp_path):
+    from models import Tweak
+    from services import links
+    app, c = admin_client(tmp_path)
+    fp = ":".join(["AB"] * 32)
+    r = post_tweak(c, {"name": "pinned", "protocol": "udp", "udp_server": "udp.example.com:443", "udp_password": "pw",
+                       "udp_pin": fp, "udp_certname": "real.example.com"})
+    assert r.status_code == 302
+    tls = app.test_client().get("/api/v1/config").get_json()["tweaks"][0]["outbound"]["streamSettings"]["tlsSettings"]
+    assert tls["pinnedPeerCertSha256"] == "ab" * 32 and tls["verifyPeerCertByName"] == "real.example.com"
+    assert "fingerprint" in post_tweak(c, {"name": "bad", "protocol": "udp", "udp_server": "h:1", "udp_password": "p",
+                                           "udp_pin": "not-a-fingerprint"}).get_data(as_text=True)
+    # a UDP tweak saved by the earlier version still carries the removed setting: it is cleaned when served
+    old = {"protocol": "hysteria", "tag": "proxy", "settings": {"version": 2, "address": "h", "port": 20000},
+           "streamSettings": {"network": "hysteria", "security": "tls",
+                              "tlsSettings": {"serverName": "h", "alpn": ["h3"], "allowInsecure": True},
+                              "hysteriaSettings": {"version": 2, "auth": "u:p", "udphop": {"port": "20000-50000", "interval": 30}}}}
+    with app.app_context():
+        t = Tweak(name="legacy", protocol="udp", host="h", port=20000)
+        t.cfg = {"outbound": old}
+        db.session.add(t)
+        db.session.commit()
+    served = {x["name"]: x for x in app.test_client().get("/api/v1/config").get_json()["tweaks"]}["legacy"]["outbound"]
+    ss = served["streamSettings"]
+    assert "allowInsecure" not in ss["tlsSettings"] and "udphop" not in ss["hysteriaSettings"]
+    assert ss["finalmask"]["quicParams"]["udpHop"]["ports"] == "20000-50000"
+    assert links.clean_outbound(None) == {}

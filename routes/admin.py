@@ -129,7 +129,8 @@ def _tweak_values(s):
         "v2_tls": cfg.get("form", {}).get("tls", True),
         "udp_server": _udp_server(s),
         "udp_username": cfg.get("form", {}).get("username", ""), "udp_password": cfg.get("form", {}).get("password", ""),
-        "udp_sni": cfg.get("form", {}).get("sni", ""), "udp_insecure": cfg.get("form", {}).get("insecure", True),
+        "udp_sni": cfg.get("form", {}).get("sni", ""), "udp_pin": cfg.get("form", {}).get("pin", ""),
+        "udp_certname": cfg.get("form", {}).get("cert_name", ""),
         "wg_conf": cfg.get("wg_conf", ""),
         "custom_outbound": json.dumps(cfg["outbound"], indent=2) if s and s.protocol == "custom" and cfg.get("outbound") else "",
     }
@@ -226,8 +227,10 @@ def _fill_tweak(s, f, files=None):
         first_port, port_spec = links.parse_ports(server_ports)
         host, port = server_host, first_port
         form = {"username": f.get("udp_username", "").strip(), "password": f.get("udp_password", ""),
-                "sni": f.get("udp_sni", "").strip(), "insecure": bool(f.get("udp_insecure")), "port_spec": port_spec}
-        cfg = {"outbound": links.build_udp(host, port_spec, form["username"], form["password"], form["sni"], form["insecure"]),
+                "sni": f.get("udp_sni", "").strip(), "pin": f.get("udp_pin", "").strip(),
+                "cert_name": f.get("udp_certname", "").strip(), "port_spec": port_spec}
+        cfg = {"outbound": links.build_udp(host, port_spec, form["username"], form["password"], form["sni"], form["pin"],
+                                           form["cert_name"]),
                "form": form}
     elif proto == "wireguard":
         conf = f.get("wg_conf", "").strip()
