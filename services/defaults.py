@@ -11,8 +11,7 @@ AIRTEL_CAP = {
 TELKOM_UNLIMITED = {
     "name": "TELKOM UNLIMITED", "country_code": "KE", "description": "Telkom", "protocol": "ssh",
     "host": "172.235.157.43", "port": 443,
-    # The account below is an assumption (the same login as AIRTEL CAP). Edit the tweak if your Telkom server uses another.
-    "cfg": {"username": "freedom", "password": "decrypt", "payload": '[method] [host_port] [protocol][crlf]Host: [host][crlf]Service: SSH[crlf]Mode: Bypass[crlf][crlf]',
+    "cfg": {"username": "crisdev", "password": "crisdev", "payload": '[method] [host_port] [protocol][crlf]Host: [host][crlf]Service: SSH[crlf]Mode: Bypass[crlf][crlf]',
             "sni": "myaccount.telkom.co.ke", "proxy_host": "", "proxy_port": 0},
 }
 
