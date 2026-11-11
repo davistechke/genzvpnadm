@@ -23,8 +23,8 @@ main{max-width:1040px;margin:0 auto;padding:0 20px 64px}
 .btn.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--line)}
 .btn.danger{background:transparent;color:var(--danger);border:1.5px solid var(--line)}
 /* row actions (Hide, Show, Copy, Edit, Delete, Publish): solid black so they are always visible */
-.btn.small,.btn.ghost.small,.btn.danger.small{background:#000;color:#fff!important;border:1.5px solid #000}
-.btn.small:hover,.btn.ghost.small:hover,.btn.danger.small:hover{background:#2b2b2b;border-color:#2b2b2b}
+button.btn.small,a.btn.small,button.btn.ghost.small,button.btn.danger.small,a.btn.ghost.small{background:#000!important;color:#fff!important;border:1.5px solid #000!important;opacity:1!important}
+button.btn.small:hover,a.btn.small:hover,button.btn.ghost.small:hover,button.btn.danger.small:hover{background:#2b2b2b!important;border-color:#2b2b2b!important}
 button.link{background:none;border:0;font:500 1rem var(--body);color:var(--ink);cursor:pointer;padding:0}
 :focus-visible{outline:3px solid var(--tang);outline-offset:2px}
 .flash{padding:12px 16px;border-radius:10px;margin:8px 0;font-weight:500}
