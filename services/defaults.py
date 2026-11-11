@@ -8,17 +8,36 @@ AIRTEL_CAP = {
 }
 
 
+TELKOM_UNLIMITED = {
+    "name": "TELKOM UNLIMITED", "country_code": "KE", "description": "Telkom", "protocol": "ssh",
+    "host": "172.235.157.43", "port": 443,
+    # The account below is an assumption (the same login as AIRTEL CAP). Edit the tweak if your Telkom server uses another.
+    "cfg": {"username": "freedom", "password": "decrypt", "payload": '[method] [host_port] [protocol][crlf]Host: [host][crlf]Service: SSH[crlf]Mode: Bypass[crlf][crlf]',
+            "sni": "myaccount.telkom.co.ke", "proxy_host": "", "proxy_port": 0},
+}
+
+
+def _add(d, sort):
+    t = Tweak(name=d["name"], country_code=d["country_code"], description=d["description"], protocol=d["protocol"],
+              host=d["host"], port=d["port"], sort=sort, is_active=True)
+    t.cfg = d["cfg"]
+    db.session.add(t)
+
+
 def seed_default_tweak():
-    """Add AIRTEL CAP once, even if other tweaks already exist, so every panel starts with a working example to copy.
-    After that it is an ordinary tweak: edit it, copy it, or delete it and it stays deleted."""
-    if get_setting("default_seeded"):
-        return
-    if not Tweak.query.filter_by(name=AIRTEL_CAP["name"]).first():
-        d = AIRTEL_CAP
-        t = Tweak(name=d["name"], country_code=d["country_code"], description=d["description"], protocol=d["protocol"],
-                  host=d["host"], port=d["port"], sort=0, is_active=True)
-        t.cfg = d["cfg"]
-        db.session.add(t)
+    """Add the default tweaks once each, even if other tweaks exist, so every panel starts with working examples to copy.
+    After that they are ordinary tweaks: edit, copy or delete them and a deleted one stays deleted."""
+    changed = False
+    if not get_setting("default_seeded"):
+        if not Tweak.query.filter_by(name=AIRTEL_CAP["name"]).first():
+            _add(AIRTEL_CAP, 0)
+        set_setting("default_seeded", "1")
+        changed = True
+    if not get_setting("default_seeded_telkom"):
+        if not Tweak.query.filter_by(name=TELKOM_UNLIMITED["name"]).first():
+            _add(TELKOM_UNLIMITED, 1)
+        set_setting("default_seeded_telkom", "1")
+        changed = True
+    if changed:
         bump_rev()
-    set_setting("default_seeded", "1")
     db.session.commit()

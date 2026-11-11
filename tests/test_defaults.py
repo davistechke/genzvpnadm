@@ -9,12 +9,17 @@ def make(tmp_path):
 def test_airtel_cap_is_seeded_once(tmp_path):
     app = make(tmp_path)
     with app.app_context():
-        t = Tweak.query.one()
-        assert t.name == "AIRTEL CAP" and t.protocol == "ssh" and t.host == "suzuki.turbo-ssh.uk" and t.port == 443
+        by = {x.name: x for x in Tweak.query}
+        t = by["AIRTEL CAP"]
+        assert t.protocol == "ssh" and t.host == "suzuki.turbo-ssh.uk" and t.port == 443
         assert t.cfg["proxy_port"] == 80 and "[rotate=" in t.cfg["payload"] and "[host]" in t.cfg["payload"]
-        db.session.delete(t)
+        k = by["TELKOM UNLIMITED"]
+        assert (k.host, k.port, k.cfg["sni"]) == ("172.235.157.43", 443, "myaccount.telkom.co.ke") and not k.cfg["proxy_host"]
+        assert k.cfg["payload"] == "[method] [host_port] [protocol][crlf]Host: [host][crlf]Service: SSH[crlf]Mode: Bypass[crlf][crlf]"
+        for x in list(by.values()):
+            db.session.delete(x)
         db.session.commit()
-    app2 = make(tmp_path)  # restart: a deleted default stays deleted
+    app2 = make(tmp_path)  # restart: deleted defaults stay deleted
     with app2.app_context():
         assert Tweak.query.count() == 0
 
@@ -22,8 +27,10 @@ def test_airtel_cap_is_seeded_once(tmp_path):
 def test_public_bundle_has_the_ssh_block(tmp_path):
     app = make(tmp_path)
     b = app.test_client().get("/api/v1/config").get_json()
-    s = b["tweaks"][0]["ssh"]
-    assert b["tweaks"][0]["name"] == "AIRTEL CAP" and s["host"] == "suzuki.turbo-ssh.uk" and s["proxy_port"] == 80
+    first = {x["name"]: x for x in b["tweaks"]}
+    s = first["AIRTEL CAP"]["ssh"]
+    assert s["host"] == "suzuki.turbo-ssh.uk" and s["proxy_port"] == 80
+    assert first["TELKOM UNLIMITED"]["ssh"]["sni"] == "myaccount.telkom.co.ke"
 
 
 def test_seeded_even_when_other_tweaks_exist(tmp_path):
@@ -33,7 +40,7 @@ def test_seeded_even_when_other_tweaks_exist(tmp_path):
         db.session.commit()
     app2 = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True})
     with app2.app_context():
-        assert sorted(x.name for x in Tweak.query) == ["AIRTEL CAP", "Mine"]
+        assert sorted(x.name for x in Tweak.query) == ["AIRTEL CAP", "Mine", "TELKOM UNLIMITED"]
 
 
 def test_admin_forms_behave_like_the_injector_apps(tmp_path):
@@ -137,3 +144,20 @@ def test_udp_certificate_pinning_and_old_saved_tweaks_are_repaired(tmp_path):
     assert "allowInsecure" not in ss["tlsSettings"] and "udphop" not in ss["hysteriaSettings"]
     assert ss["finalmask"]["quicParams"]["udpHop"]["ports"] == "20000-50000"
     assert links.clean_outbound(None) == {}
+
+
+def test_panel_that_already_has_airtel_gets_telkom_once(tmp_path):
+    from models import set_setting
+    uri = f"sqlite:///{tmp_path/'t.db'}"
+    app = create_app({"SQLALCHEMY_DATABASE_URI": uri, "TESTING": True})          # a panel from before Telkom existed:
+    with app.app_context():
+        Tweak.query.filter_by(name="TELKOM UNLIMITED").delete()
+        from models import Setting
+        Setting.query.filter_by(key="default_seeded_telkom").delete()
+        db.session.commit()
+    app2 = create_app({"SQLALCHEMY_DATABASE_URI": uri, "TESTING": True})
+    with app2.app_context():
+        assert sorted(x.name for x in Tweak.query) == ["AIRTEL CAP", "TELKOM UNLIMITED"]
+    app3 = create_app({"SQLALCHEMY_DATABASE_URI": uri, "TESTING": True})          # and not again after that
+    with app3.app_context():
+        assert Tweak.query.count() == 2
