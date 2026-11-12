@@ -1,11 +1,12 @@
 import gzip
+import json
 import ipaddress
 import re
 from datetime import timedelta
 
 from flask import Blueprint, Response, current_app, request
 
-from models import Presence, Tweak, db, utcnow
+from models import Presence, PresenceUsage, Tweak, current_rev, db, get_setting, set_setting, utcnow
 from routes.common import record_failure, throttled
 from services.bundle import body_and_etag, build_bundle
 from services.lock import lock
@@ -28,6 +29,49 @@ def config():
         body = gzip.compress(body, 6)
         headers["Content-Encoding"] = "gzip"
     return Response(body, headers=headers)
+
+
+@bp.get("/rev")
+def rev():
+    """Tells a phone whether the panel changed. `since` is the revision the phone already has; if it is still current the
+    answer is held back (when LONGPOLL_SECONDS is set) until something is posted, so an ad or notice arrives within a second."""
+    import time
+    try:
+        since = int(request.args.get("since", "-1"))
+    except ValueError:
+        since = -1
+    end = time.monotonic() + min(current_app.config["LONGPOLL_SECONDS"], 28)
+    now_rev = current_rev()
+    while now_rev == since and time.monotonic() < end:
+        time.sleep(1)
+        now_rev = current_rev()
+    return Response(json.dumps({"rev": now_rev}), headers={"Content-Type": "application/json", "Cache-Control": "no-store",
+                                                          "Access-Control-Allow-Origin": "*"})
+
+
+def _bytes(value):
+    """A byte counter from the app: a whole number, never negative, capped so a bad value cannot wreck the totals."""
+    try:
+        return max(0, min(int(value), 10**13))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _record_usage(device, down, up, fresh):
+    """Add what this phone moved since its last report to the all-time totals, and remember its session figures.
+    A session counter that went backwards (or a new session) starts again from zero."""
+    row = db.session.get(PresenceUsage, device)
+    if row is None:
+        row = PresenceUsage(device=device, down=0, up=0)
+        db.session.add(row)
+        fresh = True
+    prev_down = 0 if fresh or down < row.down else row.down
+    prev_up = 0 if fresh or up < row.up else row.up
+    add_down, add_up = down - prev_down, up - prev_up
+    if add_down or add_up:
+        set_setting("usage_down_total", str(_bytes(get_setting("usage_down_total", "0")) + add_down))
+        set_setting("usage_up_total", str(_bytes(get_setting("usage_up_total", "0")) + add_up))
+    row.down, row.up = down, up
 
 
 def _ip_or_blank(text):
@@ -57,8 +101,14 @@ def presence():
         record_failure(key)  # counts every call, not only failures
     now = utcnow()
     Presence.query.filter(Presence.last_seen < now - timedelta(seconds=current_app.config["PRESENCE_KEEP_SECONDS"])).delete()
+    # Presence rows were just purged above; drop usage rows whose phone is gone too.
+    PresenceUsage.query.filter(~PresenceUsage.device.in_(db.session.query(Presence.device))).delete(synchronize_session=False)
+    down, up = _bytes(data.get("down")), _bytes(data.get("up"))
     if data.get("state") == "off":
+        if down or up:
+            _record_usage(device, down, up, fresh=False)
         Presence.query.filter_by(device=device).delete()
+        PresenceUsage.query.filter_by(device=device).delete()
         db.session.commit()
         return Response(status=204)
     try:
@@ -79,5 +129,6 @@ def presence():
     # address). The request itself comes through the VPN, so the address the server sees is the VPN's, not the phone's.
     row.ip, row.exit_ip = (_ip_or_blank(data.get("phone_ip", "")) or ip)[:64], _ip_or_blank(data.get("exit_ip", ""))
     row.app_version, row.last_seen = str(data.get("app", ""))[:20], now
+    _record_usage(device, down, up, fresh)
     db.session.commit()
     return Response(status=204)

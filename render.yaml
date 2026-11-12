@@ -3,11 +3,14 @@ services:
     name: genzvpn
     runtime: python
     buildCommand: pip install -r requirements.txt
-    # threads keep large APK uploads and slow downloads from being cut off by the worker timeout
-    startCommand: gunicorn wsgi:app --workers 2 --threads 8 --timeout 300 --bind 0.0.0.0:$PORT
+    # gevent lets one worker hold thousands of phones waiting for live updates (LONGPOLL_SECONDS) without using threads,
+    # and keeps large APK uploads and slow downloads from being cut off by the worker timeout
+    startCommand: gunicorn wsgi:app --worker-class gevent --worker-connections 1000 --workers 2 --timeout 300 --bind 0.0.0.0:$PORT
     envVars:
       - key: SECRET_KEY
         generateValue: true
+      - key: LONGPOLL_SECONDS  # phones get ads and notifications within about a second
+        value: "25"
       - key: SESSION_COOKIE_SECURE
         value: "1"
       - key: DATABASE_URL      # Render Postgres internal URL

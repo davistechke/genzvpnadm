@@ -196,3 +196,19 @@ def test_admin_address_without_slash_works(app, admin):
     assert r.status_code in (301, 302, 308) or r.status_code == 200      # must never be a server error
     assert anon.get("/admin", follow_redirects=True).status_code == 200  # ends on the sign-in page
     assert admin.get("/admin", follow_redirects=True).status_code == 200  # signed in: ends on the panel
+
+
+def test_admin_sees_data_used_by_people_online_and_the_all_time_total(app, admin):
+    MB = 1024 * 1024
+    beat(app, down=10 * MB, up=2 * MB)
+    beat(app, device="ffffffffffffffff", ip="105.9.9.9", down=5 * MB, up=1 * MB)
+    beat(app, down=30 * MB, up=4 * MB)                       # the first phone keeps going: only the difference is added
+    page = admin.get("/admin/?tab=online").get_data(as_text=True)
+    assert "30.0 MB" in page                                   # that phone's own download column
+    assert "↓ 35.0 MB" in page and "↑ 5.0 MB" in page         # people online now: 30+5 down, 4+1 up
+    assert "<b>40.0 MB</b>" in page                            # all-time total: 35 down + 5 up
+    beat(app, down=2 * MB, up=0)                               # a counter that went backwards starts again from zero
+    beat(app, state="off", down=3 * MB, up=1 * MB)             # goodbye carries the final figures
+    page = admin.get("/admin/?tab=online").get_data(as_text=True)
+    assert "↓ 5.0 MB" in page and "<b>44.0 MB</b>" in page     # one phone left; totals 38 down + 6 up
+    assert beat(app, down="junk", up=-5).status_code == 204    # bad numbers count as zero, not an error

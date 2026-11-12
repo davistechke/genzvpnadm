@@ -7,7 +7,7 @@
 {% block head %}{% if tab == 'online' %}<meta http-equiv="refresh" content="15">{% endif %}{% endblock %}
 {% block content %}
 <div class="tabs">
-  {% for t, label in [('tweaks','Tweaks'),('online','Online (' ~ online_count ~ ')'),('app','App (APK)'),('notices','Notifications'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  {% for t, label in [('tweaks','Tweaks'),('online','Online (' ~ online_count ~ ')'),('app','App (APK)'),('notices','Notifications'),('ads','Ads'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
   <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
   {% endfor %}
 </div>
@@ -35,16 +35,22 @@
 {% elif tab == 'online' %}
 <div class="stats">
   <div class="stat"><b>{{ online|length }}</b><span class="muted">online now</span></div>
+  <div class="stat"><b>↓ {{ now_down | filesize }}</b><span class="muted">downloaded by people online now</span></div>
+  <div class="stat"><b>↑ {{ now_up | filesize }}</b><span class="muted">uploaded by people online now</span></div>
+  <div class="stat"><b>{{ (all_down + all_up) | filesize }}</b><span class="muted">all-time total (↓ {{ all_down | filesize }} · ↑ {{ all_up | filesize }})</span></div>
   {% for name, n in per_tweak[:3] %}<div class="stat"><b>{{ n }}</b><span class="muted">{{ name }}</span></div>{% endfor %}
 </div>
 {% if online %}
 <div class="scroll"><table class="ledger">
-  <thead><tr><th>Tweak</th><th>Phone IP</th><th>VPN IP</th><th>Connected for</th><th>App</th><th>Last seen</th><th>Device</th></tr></thead>
+  <thead><tr><th>Tweak</th><th>Phone IP</th><th>VPN IP</th><th>↓ Download</th><th>↑ Upload</th><th>Total</th><th>Connected for</th><th>App</th><th>Last seen</th><th>Device</th></tr></thead>
   {% for o in online %}
   <tr>
     <td>{{ o.tweak }}</td>
     <td><span class="code">{{ o.ip }}</span></td>
     <td>{% if o.exit_ip %}<span class="code">{{ o.exit_ip }}</span>{% else %}<span class="muted">–</span>{% endif %}</td>
+    <td>{{ o.down | filesize }}</td>
+    <td>{{ o.up | filesize }}</td>
+    <td><b>{{ (o.down + o.up) | filesize }}</b></td>
     <td>{{ o.for }}</td>
     <td>{{ o.version or '–' }}</td>
     <td>{{ o.seen }}s ago</td>
@@ -123,6 +129,30 @@
   <tr><td>{{ n.created_at.strftime('%d %b %Y') }}</td><td><strong>{{ n.title }}</strong><br><span class="hint">{{ n.message }}</span></td>
       <td><form class="inline" method="post" action="{{ url_for('admin.notice_delete', nid=n.id) }}" data-confirm="Delete this notification?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form></td></tr>
   {% else %}<tr><td colspan="3" class="muted">Nothing sent yet.</td></tr>{% endfor %}
+</table></div>
+
+{% elif tab == 'ads' %}
+<div class="panel">
+  <h3>Post an ad in the app</h3>
+  <form method="post" action="{{ url_for('admin.ad_add') }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <label>Title</label><input name="title" maxlength="80" placeholder="Fast hosting from KES 500" required>
+    <label>Text</label><textarea name="message" rows="3" maxlength="1000" placeholder="What you are advertising"></textarea>
+    <label>Image address (optional)</label><input name="image_url" maxlength="500" placeholder="https://example.com/banner.jpg">
+    <label>Link (optional)</label><input name="link_url" maxlength="500" placeholder="https://example.com/offer">
+    <label>Button text (optional)</label><input name="button" maxlength="30" placeholder="Learn more">
+    <p><button class="btn">Post ad</button></p>
+    <p class="hint">Ads appear on the app's main screen after users tap Update or import a new config file. Links and images must start with https://. With several live ads the app rotates through them.</p>
+  </form>
+</div>
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>Posted</th><th>Ad</th><th>Status</th><th></th></tr></thead>
+  {% for a in ads %}
+  <tr><td>{{ a.created_at.strftime('%d %b %Y') }}</td>
+      <td><strong>{{ a.title }}</strong><br><span class="hint">{{ a.message }}</span>{% if a.link_url %}<br><span class="hint">{{ a.link_url }}</span>{% endif %}</td>
+      <td><span class="badge {{ 'on' if a.is_active else 'off' }}">{{ 'live' if a.is_active else 'hidden' }}</span></td>
+      <td><form class="inline" method="post" action="{{ url_for('admin.ad_toggle', aid=a.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if a.is_active else 'Show' }}</button></form>
+          <form class="inline" method="post" action="{{ url_for('admin.ad_delete', aid=a.id) }}" data-confirm="Delete this ad?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form></td></tr>
+  {% else %}<tr><td colspan="4" class="muted">No ads yet.</td></tr>{% endfor %}
 </table></div>
 
 {% elif tab == 'import' %}

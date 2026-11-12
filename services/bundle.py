@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 
 from services import links
-from models import Notice, Tweak, bump_rev, db, get_setting, set_setting, utcnow
+from models import Ad, Notice, Tweak, bump_rev, db, get_setting, set_setting, utcnow
 
 FORMAT = "genzvpn-config"
 
@@ -37,6 +37,14 @@ def notice_to_dict(n):
             "date": n.created_at.strftime("%Y-%m-%d") if n.created_at else ""}
 
 
+def ad_to_dict(a, full=False):
+    d = {"id": a.id, "title": a.title, "message": a.message or "", "image": a.image_url or "",
+         "link": a.link_url or "", "button": a.button or ""}
+    if full:
+        d["active"] = a.is_active
+    return d
+
+
 def build_bundle(public=True):
     q = Tweak.query
     tweaks = q.filter_by(is_active=True).order_by(Tweak.sort, Tweak.name).all() if public else \
@@ -46,6 +54,8 @@ def build_bundle(public=True):
     return {"format": FORMAT, "version": int(get_setting("rev", "0") or 0),
             "channel_url": get_setting("channel_url", ""),
             "notifications": [notice_to_dict(n) for n in Notice.query.order_by(Notice.id.desc()).limit(20)],
+            "ads": [ad_to_dict(a, not public) for a in
+                    (Ad.query.filter_by(is_active=True) if public else Ad.query).order_by(Ad.id.desc()).limit(10)],
             "tweaks": [tweak_to_dict(t, not public) for t in tweaks]}
 
 
@@ -84,6 +94,7 @@ def import_bundle(data, replace=True):
     if replace:
         Tweak.query.delete()
         Notice.query.delete()
+        Ad.query.delete()
     items = [d for d in data.get("servers", [])] + [d for d in data.get("tweaks", []) if "protocol" in d]
     for i, d in enumerate(items):
         _import_one(d, i)
@@ -92,6 +103,10 @@ def import_bundle(data, replace=True):
     for n in reversed(data.get("notifications", [])):  # oldest first so ids keep their order
         db.session.add(Notice(title=str(n.get("title", ""))[:80] or "Update", message=str(n.get("message", "")),
                               created_at=_date(n.get("date")) or utcnow()))
+    for a in reversed(data.get("ads", [])):
+        db.session.add(Ad(title=str(a.get("title", ""))[:80] or "Ad", message=str(a.get("message", ""))[:1000],
+                          image_url=str(a.get("image", ""))[:500], link_url=str(a.get("link", ""))[:500],
+                          button=str(a.get("button", ""))[:30], is_active=bool(a.get("active", True))))
     bump_rev()
     db.session.commit()
     return len(items)

@@ -59,6 +59,19 @@ class Tweak(db.Model):
         self.data = json.dumps(value, separators=(",", ":"))
 
 
+class Ad(db.Model):
+    """An advert the admin posts; the app shows it on its main screen. Image and link are optional."""
+    __tablename__ = "ads"
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(80), nullable=False)
+    message = db.Column(db.Text, default="")
+    image_url = db.Column(db.String(500), default="")
+    link_url = db.Column(db.String(500), default="")
+    button = db.Column(db.String(30), default="")
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow)
+
+
 class Notice(db.Model):
     """A message the admin posts; shows up in the app's Notifications screen."""
     __tablename__ = "notices"
@@ -87,9 +100,26 @@ def set_setting(key, value):
         db.session.add(Setting(key=key, value=value))
 
 
+_rev_cache = {"value": 0, "read_at": 0.0}
+
+
 def bump_rev():
     """Every admin change calls this so apps can tell the config changed."""
     set_setting("rev", str(int(get_setting("rev", "0") or 0) + 1))
+    _rev_cache["read_at"] = 0.0   # the next reader looks again instead of trusting a copy made before this change
+
+
+def current_rev(max_age=1.0):
+    """The config revision, read from the database at most once per `max_age` seconds per worker, so thousands of phones
+    waiting for news cost one tiny query a second instead of one each."""
+    import time
+    now = time.monotonic()
+    if now - _rev_cache["read_at"] >= max_age:
+        db.session.remove()                      # drop any copy this request already holds, then look at the real value
+        _rev_cache["value"] = int(get_setting("rev", "0") or 0)
+        _rev_cache["read_at"] = now
+        db.session.remove()                      # and do not keep a database connection busy while the phone waits
+    return _rev_cache["value"]
 
 
 # ---------------------------------------------------------------- the Android app download
@@ -146,3 +176,12 @@ class Presence(db.Model):
     app_version = db.Column(db.String(20), default="")
     connected_at = db.Column(db.DateTime, default=utcnow)
     last_seen = db.Column(db.DateTime, default=utcnow, index=True)
+
+
+class PresenceUsage(db.Model):
+    """Bytes a connected phone has moved through the tunnel this session, as its app reports them. Kept in its own table so
+    existing databases pick it up without a migration. Removed together with the phone's Presence row."""
+    __tablename__ = "presence_usage"
+    device = db.Column(db.String(64), primary_key=True)
+    down = db.Column(db.BigInteger, default=0, nullable=False)
+    up = db.Column(db.BigInteger, default=0, nullable=False)

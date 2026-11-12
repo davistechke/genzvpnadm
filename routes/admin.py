@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for)
 
-from models import (Admin, ApkRelease, Notice, Presence, Tweak, bump_rev, db, get_setting, set_setting, slugify,
+from models import (Ad, Admin, ApkRelease, Notice, Presence, PresenceUsage, Tweak, bump_rev, db, get_setting, set_setting, slugify,
                     utcnow)
 from routes.common import (admin_required, check_csrf, clear_failures, current_admin, record_failure,
                            throttled)
@@ -84,6 +84,7 @@ def home():
     ctx["tweaks"] = Tweak.query.order_by(Tweak.sort, Tweak.name).all()
     ctx["channel_url"] = get_setting("channel_url", "")
     ctx["notices"] = Notice.query.order_by(Notice.id.desc()).limit(50).all()
+    ctx["ads"] = Ad.query.order_by(Ad.id.desc()).limit(50).all()
     ctx["rev"] = get_setting("rev", "0")
     ctx["locked"] = bool(current_app.config["CONFIG_KEY"])
     cutoff = utcnow() - timedelta(seconds=current_app.config["ONLINE_SECONDS"])
@@ -92,11 +93,17 @@ def home():
         now = utcnow()
         rows = Presence.query.filter(Presence.last_seen >= cutoff).order_by(Presence.connected_at).all()
         names = {t.id: t.name for t in Tweak.query.all()}
+        used = {u.device: u for u in PresenceUsage.query.all()}
         ctx["online"] = [{
+            "down": used[r.device].down if r.device in used else 0, "up": used[r.device].up if r.device in used else 0,
             "tweak": names.get(r.tweak_id) or r.tweak_name or "unknown", "ip": r.ip, "exit_ip": r.exit_ip,
             "version": r.app_version, "for": _ago(now - r.connected_at), "seen": int((now - r.last_seen).total_seconds()),
             "device": r.device[:6],
         } for r in rows]
+        ctx["now_down"] = sum(o["down"] for o in ctx["online"])
+        ctx["now_up"] = sum(o["up"] for o in ctx["online"])
+        ctx["all_down"] = int(get_setting("usage_down_total", "0") or 0)
+        ctx["all_up"] = int(get_setting("usage_up_total", "0") or 0)
         per = {}
         for o in ctx["online"]:
             per[o["tweak"]] = per.get(o["tweak"], 0) + 1
@@ -417,6 +424,56 @@ def notice_delete(nid):
         bump_rev()
         db.session.commit()
     return redirect(url_for("admin.home", tab="notices"))
+
+
+# ------------------------------------------------------------------ adverts shown in the app
+
+def _https_or_blank(text):
+    """Only https links are kept, so an advert can never point the app at something else."""
+    text = (text or "").strip()[:500]
+    return text if text.lower().startswith("https://") and " " not in text else ""
+
+
+@bp.post("/ads")
+@admin_required
+def ad_add():
+    f = request.form
+    title = f.get("title", "").strip()[:80]
+    if not title:
+        flash("Give the ad a title.", "error")
+    else:
+        link, image = _https_or_blank(f.get("link_url")), _https_or_blank(f.get("image_url"))
+        if (f.get("link_url", "").strip() and not link) or (f.get("image_url", "").strip() and not image):
+            flash("Links and image addresses must start with https://", "error")
+        else:
+            db.session.add(Ad(title=title, message=f.get("message", "").strip()[:1000], image_url=image,
+                              link_url=link, button=f.get("button", "").strip()[:30]))
+            bump_rev()
+            db.session.commit()
+            flash("Ad posted. Users see it after they tap Update.", "ok")
+    return redirect(url_for("admin.home", tab="ads"))
+
+
+@bp.post("/ads/<int:aid>/toggle")
+@admin_required
+def ad_toggle(aid):
+    a = db.session.get(Ad, aid)
+    if a:
+        a.is_active = not a.is_active
+        bump_rev()
+        db.session.commit()
+    return redirect(url_for("admin.home", tab="ads"))
+
+
+@bp.post("/ads/<int:aid>/delete")
+@admin_required
+def ad_delete(aid):
+    a = db.session.get(Ad, aid)
+    if a:
+        db.session.delete(a)
+        bump_rev()
+        db.session.commit()
+    return redirect(url_for("admin.home", tab="ads"))
 
 
 # ------------------------------------------------------------------ the Android app (APK)

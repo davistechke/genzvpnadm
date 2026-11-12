@@ -219,3 +219,29 @@ def test_ssh_form_remote_proxy_and_payload_file(app, admin):
                                                  "ssh_username": "u", "is_active": "1"})
     names = {s["name"]: s["ssh"] for s in bundle(app.test_client())["tweaks"]}
     assert names["Direct"]["proxy_host"] == "" and names["Direct"]["proxy_port"] == 0
+
+
+def test_admin_posts_an_ad_and_the_app_bundle_carries_only_live_ones(app, admin):
+    page = "/admin/?tab=ads"
+    post(admin, "/admin/ads", {"title": "Hosting offer", "message": "Fast servers", "link_url": "https://example.com/x",
+                               "button": "Visit"}, page)
+    post(admin, "/admin/ads", {"title": "Bad link", "link_url": "javascript:alert(1)"}, page)   # refused: not https
+    ads = bundle(app.test_client())["ads"]
+    assert [a["title"] for a in ads] == ["Hosting offer"]
+    assert ads[0]["link"] == "https://example.com/x" and ads[0]["button"] == "Visit"
+    ad_id = ads[0]["id"]
+    post(admin, f"/admin/ads/{ad_id}/toggle", {}, page)                                          # Hide
+    assert bundle(app.test_client())["ads"] == []
+    post(admin, f"/admin/ads/{ad_id}/toggle", {}, page)                                          # Show again
+    assert len(bundle(app.test_client())["ads"]) == 1
+    post(admin, f"/admin/ads/{ad_id}/delete", {}, page)
+    assert bundle(app.test_client())["ads"] == []
+
+
+def test_rev_endpoint_tells_phones_when_the_panel_changed(app, admin):
+    c = app.test_client()
+    first = c.get("/api/v1/rev?since=-1").get_json()["rev"]
+    post(admin, "/admin/notices", {"title": "Hello", "message": "x"}, "/admin/?tab=notices")
+    now = c.get(f"/api/v1/rev?since={first}").get_json()["rev"]      # no waiting configured in tests: answers at once
+    assert now > first and now == bundle(c)["version"]
+    assert c.get("/api/v1/rev?since=junk").get_json()["rev"] == now
