@@ -26,10 +26,11 @@ def create_app(overrides=None):
 
     @app.before_request
     def limit_small_uploads():
-        """Only the APK upload may be large; everything else stays at 2 MB."""
+        """Only the APK uploads may be large; everything else stays at 2 MB."""
         from flask import abort, request
         if (request.content_length or 0) > app.config["SMALL_UPLOAD_LIMIT"] and \
-                request.endpoint not in ("admin.apk_upload", "admin.apk_edit"):
+                request.endpoint not in ("admin.apk_upload", "admin.apk_edit", "admin.freeapp_upload",
+                                                  "admin.freeapp_edit"):
             abort(413, "That file is too large.")
 
     @app.context_processor

@@ -7,7 +7,7 @@
 {% block head %}{% if tab == 'online' %}<meta http-equiv="refresh" content="15">{% endif %}{% endblock %}
 {% block content %}
 <div class="tabs">
-  {% for t, label in [('tweaks','Tweaks'),('online','Online (' ~ online_count ~ ')'),('app','App (APK)'),('notices','Notifications'),('ads','Ads'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
+  {% for t, label in [('tweaks','Tweaks'),('online','Online (' ~ online_count ~ ')'),('app','App (APK)'),('freeapps','Free apps'),('requests','Requests' ~ (' (' ~ new_requests ~ ')' if new_requests else '')),('notices','Notifications'),('ads','Ads'),('import','Quick import'),('backup','Backup & share'),('settings','Settings')] %}
   <a href="{{ url_for('admin.home', tab=t) }}" class="{{ 'on' if tab == t }}">{{ label }}</a>
   {% endfor %}
 </div>
@@ -112,6 +112,83 @@
 </table></div>
 <p class="hint">Share link that never changes (always the newest live version): <span class="code">{{ url_for('web.download', _external=True) }}</span></p>
 {% else %}<p class="muted">Nothing uploaded yet. The home page shows "Android app coming soon" until you upload and publish a version.</p>{% endif %}
+
+{% elif tab == 'freeapps' %}
+<div class="stats">
+  <div class="stat"><b>{{ fst.total }}</b><span class="muted">downloads</span></div>
+  <div class="stat"><b>{{ fst.people }}</b><span class="muted">people</span></div>
+  <div class="stat"><b>{{ fst.today }}</b><span class="muted">today</span></div>
+  <div class="stat"><b>{{ fst.week }}</b><span class="muted">last 7 days</span></div>
+</div>
+<h3>Downloads per day</h3>
+<svg class="chart" viewBox="0 0 280 84" role="img" aria-label="Free app downloads per day for the last 14 days">
+  {% for b in fst.bars %}
+  <rect class="bar" x="{{ b.x + 3 }}" y="{{ 60 - b.h }}" width="14" height="{{ b.h if b.h else 1 }}" rx="3"><title>{{ b.label }}: {{ b.n }}</title></rect>
+  <text class="axis" x="{{ b.x + 10 }}" y="74" text-anchor="middle">{{ b.day }}</text>
+  {% endfor %}
+</svg>
+<p class="hint">Last 14 days, East Africa Time. "People" counts different phones and browsers. No one's address is stored.</p>
+
+<h3>Upload an app for users</h3>
+<form method="post" action="{{ url_for('admin.freeapp_upload') }}" enctype="multipart/form-data" class="stack">
+  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+  <div class="grid2">
+    <div><label for="fa_name">App name</label><input id="fa_name" name="name" required></div>
+    <div><label for="fa_version">Version (optional)</label><input id="fa_version" name="version" placeholder="1.0.0"></div>
+  </div>
+  <div><label for="fa_apk">APK file</label><input id="fa_apk" name="apk" type="file" accept=".apk,application/vnd.android.package-archive" required>
+    <p class="hint">Up to {{ max_mb }} MB. Stored in your database, so it survives redeploys.</p></div>
+  <div><label for="fa_desc">Description</label><textarea id="fa_desc" name="description" rows="3" placeholder="What the app does, anything users should know"></textarea></div>
+  <div class="checks">
+    <label><input type="checkbox" name="is_published" value="1" checked> Show on the home page now</label>
+    <label><input type="checkbox" name="rights" value="1" required> I am allowed to share this app with users</label>
+  </div>
+  <button class="btn">Upload</button>
+</form>
+
+<h3>Uploaded apps</h3>
+{% if free_apps %}
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>App</th><th>Size</th><th>Downloads <span class="muted">(people)</span></th><th>State</th><th></th></tr></thead>
+  {% for a in free_apps %}
+  <tr>
+    <td>{{ a.name }}{% if a.version %} <span class="proto">v{{ a.version }}</span>{% endif %}<br><span class="hint">{{ a.created_at.strftime('%d %b %Y') }}</span></td>
+    <td>{{ a.size | filesize }}</td>
+    <td><b>{{ fst.per_app.get(a.id, (0, 0))[0] }}</b> <span class="muted">({{ fst.per_app.get(a.id, (0, 0))[1] }})</span></td>
+    <td><span class="badge {{ 'on' if a.is_published else 'off' }}">{{ 'live' if a.is_published else 'hidden' }}</span></td>
+    <td>
+      <a class="btn ghost small" href="{{ url_for('admin.freeapp_edit', aid=a.id) }}">Edit</a>
+      <form class="inline" method="post" action="{{ url_for('admin.freeapp_toggle', aid=a.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn ghost small">{{ 'Hide' if a.is_published else 'Publish' }}</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin.freeapp_delete', aid=a.id) }}" data-confirm="Delete {{ a.name }}? The file and its download history are removed."><input type="hidden" name="csrf" value="{{ csrf_token() }}"><button class="btn danger small">Delete</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+</table></div>
+{% else %}<p class="muted">Nothing uploaded yet. Published apps appear in the "Free apps from the admin" section on the home page.</p>{% endif %}
+
+{% elif tab == 'requests' %}
+<div class="tabs">
+  {% for k, label in [('open','Open'),('done','Done'),('all','All')] %}
+  <a href="{{ url_for('admin.home', tab='requests', show=k) }}" class="{{ 'on' if show == k }}">{{ label }}</a>
+  {% endfor %}
+</div>
+<div class="scroll"><table class="ledger">
+  <thead><tr><th>Received</th><th>Request</th><th>Contact</th><th>Status</th><th></th></tr></thead>
+  {% for r in reqs %}
+  <tr>
+    <td>{{ r.created_at.strftime('%d %b %Y') }}</td>
+    <td><span class="proto">{{ kind_names.get(r.kind, r.kind) }}</span>{% if r.subject %} <strong>{{ r.subject }}</strong>{% endif %}<br><span style="white-space:pre-wrap">{{ r.message }}</span></td>
+    <td>{{ r.contact or '–' }}</td>
+    <td><span class="badge {{ 'on' if r.status == 'done' else ('pending' if r.status == 'new' else '') }}">{{ r.status }}</span></td>
+    <td>
+      {% for st in statuses if st != r.status %}
+      <form class="inline" method="post" action="{{ url_for('admin.request_status', rid=r.id) }}"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="status" value="{{ st }}"><input type="hidden" name="show" value="{{ show }}"><button class="btn ghost small">Mark {{ st }}</button></form>
+      {% endfor %}
+      <form class="inline" method="post" action="{{ url_for('admin.request_delete', rid=r.id) }}" data-confirm="Delete this request?"><input type="hidden" name="csrf" value="{{ csrf_token() }}"><input type="hidden" name="show" value="{{ show }}"><button class="btn danger small">Delete</button></form>
+    </td>
+  </tr>
+  {% else %}<tr><td colspan="5" class="muted">No requests here yet.</td></tr>{% endfor %}
+</table></div>
 
 {% elif tab == 'notices' %}
 <div class="panel">

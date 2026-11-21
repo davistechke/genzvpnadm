@@ -46,5 +46,37 @@
   </ol>
 </section>
 {% endif %}
+{% if free_apps %}
+<section class="apk-card" id="free-apps">
+  <h2>Free apps from the admin</h2>
+  <p class="hint">Extra apps shared for our users. Download, then install the same way as the VPN app.</p>
+  <ul class="free-list">
+    {% for a in free_apps %}
+    <li>
+      <div><strong>{{ a.name }}</strong>{% if a.version %} <span class="proto">v{{ a.version }}</span>{% endif %}
+        <p class="hint">{{ a.size | filesize }} · {{ a.created_at.strftime('%d %b %Y') }} · {{ a.downloads }} download{{ '' if a.downloads == 1 else 's' }}</p>
+        {% if a.description %}<p class="apk-notes">{{ a.description }}</p>{% endif %}</div>
+      <a class="btn alt" href="{{ url_for('web.free_app_download', aid=a.id) }}">Download</a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+{% endif %}
+<section class="apk-card" id="requests">
+  <h2>Request or report something</h2>
+  <p class="hint">A tweak not working? Want a feature or an app? Tell the admin. No sign-up needed.</p>
+  <form method="post" action="{{ url_for('web.send_request') }}" class="stack">
+    <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+    <input type="text" name="website" class="hide" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <div class="grid2">
+      <div><label for="kind">What is this about?</label>
+        <select id="kind" name="kind">{% for k, label in kinds %}<option value="{{ k }}">{{ label }}</option>{% endfor %}</select></div>
+      <div><label for="subject">Tweak or app name (optional)</label><input id="subject" name="subject" maxlength="80" placeholder="e.g. AIRTEL CAP"></div>
+    </div>
+    <div><label for="message">Your message</label><textarea id="message" name="message" rows="4" maxlength="1500" required placeholder="What is not working, or what would you like to see?"></textarea></div>
+    <div><label for="contact">WhatsApp or email (optional, only if you want a reply)</label><input id="contact" name="contact" maxlength="80"></div>
+    <button class="btn">Send</button>
+  </form>
+</section>
 <p class="hint apk-line">Privacy: while the VPN is connected, the app tells us that you are online, which tweak you use and your IP address, so we can count users. We never see what you browse, and nothing is sent while you are disconnected.</p>
 {% endblock %}
