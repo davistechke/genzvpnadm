@@ -75,7 +75,14 @@ def test_upload_rules_and_hidden(app, admin):
         db.session.commit()
     pub = app.test_client()
     assert pub.get("/apps/1/download").status_code == 404
-    assert "Free apps from the admin" not in pub.get("/").get_data(as_text=True)
+    home = pub.get("/").get_data(as_text=True)
+    assert "No free apps yet" in home and "tool.apk" not in home and 'href="/apps/1/download"' not in home
+
+
+def test_home_buttons_and_menu(app):
+    home = app.test_client().get("/").get_data(as_text=True)
+    assert 'href="#requests"' in home and 'href="#free-apps"' in home and 'id="free-apps"' in home and 'id="requests"' in home
+    assert 'class="menu"' in home and ">Home</a>" in home
 
 
 def test_admin_only(app):

@@ -107,3 +107,14 @@ textarea{width:100%;max-width:720px;min-height:110px;padding:.7em .8em;border:1.
 .free-list li:first-child{border-top:0}
 .free-list .apk-notes{margin:6px 0 0}
 select{max-width:420px}
+
+/* menu + smooth jumps */
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+#free-apps,#requests{scroll-margin-top:12px}
+.menu{position:relative}
+.menu summary{list-style:none;cursor:pointer;padding:.45em .9em}
+.menu summary::-webkit-details-marker{display:none}
+.menu-list{position:absolute;right:0;top:calc(100% + 6px);min-width:200px;background:var(--card);border:1.5px solid var(--line);border-radius:12px;padding:6px;box-shadow:0 8px 24px rgba(29,21,54,.15);z-index:10}
+.menu-list a{display:block;padding:.6em .8em;border-radius:8px;text-decoration:none;color:var(--ink);font-weight:500}
+.menu-list a:hover{background:#ece8ff}
