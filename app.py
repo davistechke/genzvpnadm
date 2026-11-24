@@ -25,12 +25,14 @@ def create_app(overrides=None):
         app.register_blueprint(m.bp)
 
     @app.before_request
-    def limit_small_uploads():
-        """Only the APK uploads may be large; everything else stays at 2 MB."""
+    def limit_uploads():
+        """Each page has its own limit: the VPN app APK, the free apps, and 2 MB for everything else."""
         from flask import abort, request
-        if (request.content_length or 0) > app.config["SMALL_UPLOAD_LIMIT"] and \
-                request.endpoint not in ("admin.apk_upload", "admin.apk_edit", "admin.freeapp_upload",
-                                                  "admin.freeapp_edit"):
+        mb = 1024 * 1024
+        limit = {"admin.apk_upload": app.config["MAX_UPLOAD_MB"] * mb, "admin.apk_edit": app.config["MAX_UPLOAD_MB"] * mb,
+                 "admin.freeapp_upload": app.config["FREE_APP_MAX_MB"] * mb,
+                 "admin.freeapp_edit": app.config["FREE_APP_MAX_MB"] * mb}.get(request.endpoint, app.config["SMALL_UPLOAD_LIMIT"])
+        if (request.content_length or 0) > limit:
             abort(413, "That file is too large.")
 
     @app.context_processor

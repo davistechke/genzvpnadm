@@ -137,7 +137,7 @@
     <div><label for="fa_version">Version (optional)</label><input id="fa_version" name="version" placeholder="1.0.0"></div>
   </div>
   <div><label for="fa_apk">APK file</label><input id="fa_apk" name="apk" type="file" accept=".apk,application/vnd.android.package-archive" required>
-    <p class="hint">Up to {{ max_mb }} MB. Stored in your database, so it survives redeploys.</p></div>
+    <p class="hint">Up to {{ (max_mb * 1048576) | filesize }}. Stored in your database, so it survives redeploys. Big files take a few minutes: keep this page open until it finishes.</p></div>
   <div><label for="fa_desc">Description</label><textarea id="fa_desc" name="description" rows="3" placeholder="What the app does, anything users should know"></textarea></div>
   <div class="checks">
     <label><input type="checkbox" name="is_published" value="1" checked> Show on the home page now</label>

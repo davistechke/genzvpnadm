@@ -119,7 +119,7 @@ def home():
     if tab == "freeapps":
         ctx["free_apps"] = FreeApp.query.order_by(FreeApp.created_at.desc(), FreeApp.id.desc()).all()
         ctx["fst"] = free_service.stats()
-        ctx["max_mb"] = current_app.config["MAX_UPLOAD_MB"]
+        ctx["max_mb"] = current_app.config["FREE_APP_MAX_MB"]
     if tab == "requests":
         show = request.args.get("show", "open")
         q = UserRequest.query

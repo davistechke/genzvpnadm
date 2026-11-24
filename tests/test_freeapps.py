@@ -120,3 +120,22 @@ def test_request_rate_limit(app):
         pub.post("/request", data={"csrf": tok, "message": f"message number {i}"})
     with app.app_context():
         assert UserRequest.query.count() == 5
+
+
+def test_upload_size_limits_are_per_page(tmp_path):
+    app = create_app({"SQLALCHEMY_DATABASE_URI": f"sqlite:///{tmp_path/'t.db'}", "TESTING": True, "SEED_DEFAULT_TWEAK": False,
+                      "ADMIN_EMAIL": "boss@x.co", "ADMIN_PASSWORD": "adminpass1"})
+    assert app.config["FREE_APP_MAX_MB"] == 2048 and app.config["MAX_UPLOAD_MB"] == 300
+    assert app.config["MAX_CONTENT_LENGTH"] >= 2048 * 1024 * 1024
+    c = app.test_client()
+    c.post("/admin/login", data={"email": "boss@x.co", "password": "adminpass1", "csrf": csrf(c, "/admin/login")})
+    tok = csrf(c, "/admin/?tab=freeapps")
+    page = c.get("/admin/?tab=freeapps").get_data(as_text=True)
+    assert "Up to 2.0 GB" in page
+    big = 400 * 1024 * 1024  # over the VPN APK limit, under the free apps limit
+    h = {"CONTENT_LENGTH": str(big)}
+    # the VPN app page and a normal page refuse it, the free apps page lets it through (the body is not read in this test)
+    assert c.post("/admin/app/upload", data={"csrf": tok}, environ_overrides=h).status_code == 413
+    assert c.post("/request", data={"csrf": tok}, environ_overrides=h).status_code == 413
+    assert c.post("/admin/freeapps/upload", data={"csrf": tok}, environ_overrides=h).status_code != 413
+    assert c.post("/admin/freeapps/upload", data={"csrf": tok}, environ_overrides={"CONTENT_LENGTH": str(2100 * 1024 * 1024)}).status_code == 413
