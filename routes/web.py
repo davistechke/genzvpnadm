@@ -2,10 +2,9 @@ import os
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_from_directory, url_for
 
-from models import REQUEST_KINDS, ApkRelease, FreeApp, UserRequest, db
+from models import REQUEST_KINDS, ApkRelease, UserRequest, db
 from routes.common import check_csrf, record_failure, throttled
 from services import apk as apk_service
-from services import freeapps as free_service
 from services.bundle import build_bundle
 
 bp = Blueprint("web", __name__)
@@ -25,8 +24,7 @@ def index():
     live = apk_service.latest_published()
     b = build_bundle(public=True)
     return render_template("landing.html", apk=live[0] if live else None, older=live[1:],
-                           has_apk=_has_legacy(), tweak_count=len(b["tweaks"]),
-                           free_apps=free_service.published(), kinds=REQUEST_KINDS)
+                           has_apk=_has_legacy(), tweak_count=len(b["tweaks"]), kinds=REQUEST_KINDS)
 
 
 @bp.route("/download", methods=["GET", "HEAD"])
@@ -48,16 +46,6 @@ def download_version(rid):
     if r is None or not r.is_published:
         abort(404, "That version is not available.")
     return apk_service.serve(r)
-
-
-# ------------------------------------------------------------------ free apps shared by the admin
-
-@bp.route("/apps/<int:aid>/download", methods=["GET", "HEAD"])
-def free_app_download(aid):
-    a = db.session.get(FreeApp, aid)
-    if a is None or not a.is_published:
-        abort(404, "That app is not available.")
-    return free_service.serve(a)
 
 
 # ------------------------------------------------------------------ requests and reports from users

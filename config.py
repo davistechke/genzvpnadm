@@ -30,9 +30,8 @@ class Config:
     ONLINE_SECONDS = 90      # a phone counts as online if it reported within this many seconds
     PRESENCE_KEEP_SECONDS = 3600
     MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "300"))          # the Android app (APK) upload
-    FREE_APP_MAX_MB = int(os.getenv("FREE_APP_MAX_MB", "2048"))      # apps shared in the Free apps section (2 GB)
     # Flask's own ceiling is the biggest allowed upload plus room for the form fields; app.py then holds each page to its own limit.
-    MAX_CONTENT_LENGTH = (max(MAX_UPLOAD_MB, FREE_APP_MAX_MB) + 5) * 1024 * 1024
+    MAX_CONTENT_LENGTH = (MAX_UPLOAD_MB + 5) * 1024 * 1024
     SMALL_UPLOAD_LIMIT = 2 * 1024 * 1024  # every other upload (payload files, config bundles) stays at 2 MB
     TZ_OFFSET_HOURS = int(os.getenv("TZ_OFFSET_HOURS", "3"))  # for "today" and the daily chart (3 = East Africa Time)
     # Optional: first admin is created automatically on startup when both are set.

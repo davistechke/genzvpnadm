@@ -9,7 +9,6 @@
       {% elif has_apk %}<a class="btn alt" href="{{ url_for('web.download') }}">Download for Android</a>
       {% else %}<span class="btn ghost" aria-disabled="true">Android app coming soon</span>{% endif %}
       <a class="btn" href="#requests">Request feature</a>
-      <a class="btn" href="#free-apps">Free apps</a>
     </div>
     {% if apk %}<p class="hint apk-line">Version {{ apk.version }} · {{ apk.size | filesize }} · updated {{ apk.created_at.strftime('%d %b %Y') }}</p>{% endif %}
     <p class="hint apk-line">{{ tweak_count }} tweak{{ '' if tweak_count == 1 else 's' }} online right now.</p>
@@ -48,24 +47,9 @@
   </ol>
 </section>
 {% endif %}
-<section class="apk-card" id="free-apps">
-  <h2>Free apps from the admin</h2>
-  <p class="hint">Extra apps shared for our users. Download, then install the same way as the VPN app.</p>
-  <ul class="free-list">
-    {% for a in free_apps %}
-    <li>
-      <div><strong>{{ a.name }}</strong>{% if a.version %} <span class="proto">v{{ a.version }}</span>{% endif %}
-        <p class="hint">{{ a.size | filesize }} · {{ a.created_at.strftime('%d %b %Y') }} · {{ a.downloads }} download{{ '' if a.downloads == 1 else 's' }}</p>
-        {% if a.description %}<p class="apk-notes">{{ a.description }}</p>{% endif %}</div>
-      <a class="btn alt" href="{{ url_for('web.free_app_download', aid=a.id) }}">Download</a>
-    </li>
-    {% else %}<li><p class="muted">No free apps yet. Check back soon, or ask for one below.</p></li>
-    {% endfor %}
-  </ul>
-</section>
 <section class="apk-card" id="requests">
   <h2>Request or report something</h2>
-  <p class="hint">A tweak not working? Want a feature or an app? Tell the admin. No sign-up needed.</p>
+  <p class="hint">A tweak not working? Want a feature or have an idea? Tell the admin. No sign-up needed.</p>
   <form method="post" action="{{ url_for('web.send_request') }}" class="stack">
     <input type="hidden" name="csrf" value="{{ csrf_token() }}">
     <input type="text" name="website" class="hide" tabindex="-1" autocomplete="off" aria-hidden="true">

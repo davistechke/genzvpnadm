@@ -187,42 +187,6 @@ class PresenceUsage(db.Model):
     up = db.Column(db.BigInteger, default=0, nullable=False)
 
 
-# ---------------------------------------------------------------- free apps library (admin uploads, users download)
-class FreeApp(db.Model):
-    """An app the admin shares with users from the home page. The file is kept in the database like the VPN app's APK."""
-    __tablename__ = "free_apps"
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(60), nullable=False)
-    version = db.Column(db.String(30), default="")
-    description = db.Column(db.Text, default="")
-    size = db.Column(db.BigInteger, default=0)
-    sha256 = db.Column(db.String(64), default="")
-    downloads = db.Column(db.Integer, default=0, nullable=False)
-    is_published = db.Column(db.Boolean, default=True, nullable=False)
-    created_at = db.Column(db.DateTime, default=utcnow)
-
-    @property
-    def filename(self):
-        v = f"-{slugify(self.version)}" if self.version else ""
-        return f"{slugify(self.name)}{v}.apk"
-
-
-class FreeAppChunk(db.Model):
-    __tablename__ = "free_app_chunks"
-    app_id = db.Column(db.Integer, db.ForeignKey("free_apps.id"), primary_key=True)
-    idx = db.Column(db.Integer, primary_key=True)
-    data = db.Column(db.LargeBinary, nullable=False)
-
-
-class FreeAppDownload(db.Model):
-    """One download. The visitor is a salted hash of address and browser, never the address itself."""
-    __tablename__ = "free_app_downloads"
-    id = db.Column(db.Integer, primary_key=True)
-    app_id = db.Column(db.Integer, db.ForeignKey("free_apps.id"), nullable=False, index=True)
-    visitor = db.Column(db.String(16), nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=utcnow, index=True)
-
-
 # ---------------------------------------------------------------- user requests
 REQUEST_KINDS = (("feature", "Feature request"), ("report", "Report a tweak that is not working"),
                  ("suggestion", "Suggestion"))

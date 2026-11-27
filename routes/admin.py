@@ -4,12 +4,11 @@ from datetime import datetime, timedelta
 
 from flask import (Blueprint, Response, current_app, flash, redirect, render_template, request, session, url_for)
 
-from models import (REQUEST_KINDS, REQUEST_STATUSES, Ad, Admin, ApkRelease, FreeApp, Notice, Presence, PresenceUsage, Tweak,
+from models import (REQUEST_KINDS, REQUEST_STATUSES, Ad, Admin, ApkRelease, Notice, Presence, PresenceUsage, Tweak,
                     UserRequest, bump_rev, db, get_setting, set_setting, slugify, utcnow)
 from routes.common import (admin_required, check_csrf, clear_failures, current_admin, record_failure,
                            throttled)
 from services import apk as apk_service
-from services import freeapps as free_service
 from services import links
 from services.bundle import FORMAT, build_bundle, import_bundle
 from services.lock import is_locked, lock, unlock
@@ -116,10 +115,6 @@ def home():
         ctx["apps"] = sorted({r.app_name for r in ctx["releases"]})
         ctx["slugify"] = slugify
         ctx["max_mb"] = current_app.config["MAX_UPLOAD_MB"]
-    if tab == "freeapps":
-        ctx["free_apps"] = FreeApp.query.order_by(FreeApp.created_at.desc(), FreeApp.id.desc()).all()
-        ctx["fst"] = free_service.stats()
-        ctx["max_mb"] = current_app.config["FREE_APP_MAX_MB"]
     if tab == "requests":
         show = request.args.get("show", "open")
         q = UserRequest.query
@@ -574,93 +569,6 @@ def apk_delete(rid):
         db.session.commit()
         flash("Deleted.", "ok")
     return redirect(url_for("admin.home", tab="app"))
-
-
-# ------------------------------------------------------------------ the free apps library (admin uploads, users download)
-
-def _freeapp_apply(a, f, files, new):
-    """Fill a free app from the form and store its file. Returns an error message or None."""
-    name, version = f.get("name", "").strip()[:60], f.get("version", "").strip()[:30]
-    if not name:
-        return "Give the app a name."
-    upload = files.get("apk")
-    has_file = bool(upload and upload.filename)
-    if new and not has_file:
-        return "Choose the APK file to upload."
-    if new and not f.get("rights"):
-        return "Tick the box to confirm you are allowed to share this app."
-    a.name, a.version = name, version
-    a.description = f.get("description", "").strip()[:1000]
-    a.is_published = bool(f.get("is_published"))
-    if has_file:
-        if not upload.filename.lower().endswith(".apk"):
-            return "The file must end in .apk"
-        if not f.get("rights"):
-            return "Tick the box to confirm you are allowed to share this app."
-        try:
-            free_service.check_apk(upload.stream)
-        except free_service.ApkError as e:
-            return str(e)
-        if new:
-            db.session.add(a)
-            db.session.flush()  # the file pieces need the app id
-        free_service.store(a, upload.stream)
-    return None
-
-
-@bp.post("/freeapps/upload")
-@admin_required
-def freeapp_upload():
-    a = FreeApp()
-    err = _freeapp_apply(a, request.form, request.files, new=True)
-    if err:
-        db.session.rollback()
-        flash(err, "error")
-    else:
-        db.session.commit()
-        flash(f"Uploaded {a.name}. " + ("Users can download it from the home page now." if a.is_published
-              else "It is hidden until you publish it."), "ok")
-    return redirect(url_for("admin.home", tab="freeapps"))
-
-
-@bp.route("/freeapps/<int:aid>", methods=["GET", "POST"])
-@admin_required
-def freeapp_edit(aid):
-    a = db.session.get(FreeApp, aid)
-    if a is None:
-        return redirect(url_for("admin.home", tab="freeapps"))
-    if request.method == "POST":
-        err = _freeapp_apply(a, request.form, request.files, new=False)
-        if err:
-            db.session.rollback()
-            flash(err, "error")
-        else:
-            db.session.commit()
-            flash("Saved.", "ok")
-            return redirect(url_for("admin.home", tab="freeapps"))
-    return render_template("freeapp_form.html", a=a)
-
-
-@bp.post("/freeapps/<int:aid>/toggle")
-@admin_required
-def freeapp_toggle(aid):
-    a = db.session.get(FreeApp, aid)
-    if a:
-        a.is_published = not a.is_published
-        db.session.commit()
-    return redirect(url_for("admin.home", tab="freeapps"))
-
-
-@bp.post("/freeapps/<int:aid>/delete")
-@admin_required
-def freeapp_delete(aid):
-    a = db.session.get(FreeApp, aid)
-    if a:
-        free_service.remove(a)
-        db.session.delete(a)
-        db.session.commit()
-        flash("Deleted.", "ok")
-    return redirect(url_for("admin.home", tab="freeapps"))
 
 
 # ------------------------------------------------------------------ requests sent by users

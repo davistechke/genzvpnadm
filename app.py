@@ -26,12 +26,10 @@ def create_app(overrides=None):
 
     @app.before_request
     def limit_uploads():
-        """Each page has its own limit: the VPN app APK, the free apps, and 2 MB for everything else."""
+        """Each page has its own limit: the VPN app APK, and 2 MB for everything else."""
         from flask import abort, request
         mb = 1024 * 1024
-        limit = {"admin.apk_upload": app.config["MAX_UPLOAD_MB"] * mb, "admin.apk_edit": app.config["MAX_UPLOAD_MB"] * mb,
-                 "admin.freeapp_upload": app.config["FREE_APP_MAX_MB"] * mb,
-                 "admin.freeapp_edit": app.config["FREE_APP_MAX_MB"] * mb}.get(request.endpoint, app.config["SMALL_UPLOAD_LIMIT"])
+        limit = {"admin.apk_upload": app.config["MAX_UPLOAD_MB"] * mb, "admin.apk_edit": app.config["MAX_UPLOAD_MB"] * mb}.get(request.endpoint, app.config["SMALL_UPLOAD_LIMIT"])
         if (request.content_length or 0) > limit:
             abort(413, "That file is too large.")
 
@@ -72,6 +70,11 @@ def create_app(overrides=None):
 
     def first_start():
         db.create_all()
+        # The Free apps feature was removed: clear its old tables (and the app files stored in them) from older databases.
+        from sqlalchemy import text
+        for table in ("free_app_chunks", "free_app_downloads", "free_apps"):
+            db.session.execute(text(f"DROP TABLE IF EXISTS {table}"))
+        db.session.commit()
         email, pw = app.config["ADMIN_EMAIL"].strip().lower(), app.config["ADMIN_PASSWORD"]
         if email and pw and not Admin.query.filter_by(email=email).first():
             a = Admin(email=email)
